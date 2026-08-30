@@ -78,15 +78,10 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
       });
     });
 
-    if (questions.length > 1000) {
-      warnings.push(
-        `과목 "${subject.name}" 의 활성 문제가 ${questions.length}개입니다. 기획안 3-4 기준(1,000개)을 넘었으니 과목을 분할해 주세요.`,
-      );
-    } else if (questions.length > 800) {
-      warnings.push(
-        `과목 "${subject.name}" 의 활성 문제가 ${questions.length}개입니다. 800개를 넘었으니 분할을 준비하세요.`,
-      );
-    }
+    // 문제 수 자체로는 경고하지 않습니다.
+    // 진짜 한계는 "문제 개수"가 아니라 진도 셀의 글자 수(50,000자)이고,
+    // 그건 동기화할 때 실제 길이로 검사합니다(isNearCellLimit). 개수 기반 경고는
+    // 아직 아무 문제도 없는데 매번 뜨는 잡음이라 뺐습니다. 상한은 README 참고.
 
     return { questions, warnings };
   });

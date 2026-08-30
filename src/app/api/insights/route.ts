@@ -4,6 +4,7 @@ import { getSubjectProgress } from "@/lib/repo/progress";
 import { loadQuestionBank } from "@/lib/repo/questions";
 import { findSubject } from "@/lib/repo/subjects";
 import { emptyLevels, levelOf, weightOf } from "@/lib/domain/progress";
+import { shuffle } from "@/lib/domain/select";
 import type { InsightData, ReviewRow } from "@/lib/domain/view-types";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,8 @@ export async function GET(req: Request) {
         id: q.id,
         text: q.text,
         answer: q.answer,
-        options: q.options,
+        // 시트에서는 정답이 늘 맨 앞이라 상세 모달에서도 순서를 섞습니다.
+        options: shuffle(q.options),
         explanation: q.explanation,
         score: rec?.score ?? 0,
         streak: rec?.streak ?? 0,

@@ -23,6 +23,11 @@ const PORTALS = [
     url: (q: string) => `https://search.naver.com/search.naver?query=${encodeURIComponent(q)}`,
   },
   {
+    // dict.naver.com/dict.search 는 한글·영어 모두 통합사전 결과로 바로 열립니다.
+    name: "네이버 사전",
+    url: (q: string) => `https://dict.naver.com/dict.search?query=${encodeURIComponent(q)}`,
+  },
+  {
     name: "구글 검색",
     url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
   },
@@ -38,7 +43,7 @@ export function PortalSearch({ text }: { text: string }) {
       <p className="mt-1 truncate text-[0.8rem] text-ink" title={query}>
         {query}
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {PORTALS.map((p) => (
           <a
             key={p.name}

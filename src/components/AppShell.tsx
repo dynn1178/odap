@@ -38,14 +38,19 @@ export function AppShell({
           </Link>
 
           {subject && (
-            <span className="min-w-0 max-w-[7rem] truncate text-[0.8rem] font-semibold sm:max-w-none">
+            <span className="min-w-0 max-w-[4rem] truncate text-[0.78rem] font-semibold sm:max-w-none sm:text-[0.85rem]">
               {subject.name}
             </span>
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {subject && (
-              <nav className="flex gap-0.5 rounded-lg bg-surface2 p-0.5">
+              <nav className="flex items-center gap-0.5 rounded-lg bg-surface2 p-0.5">
+                {/* 과목 밖으로 나가는 버튼이라 탭처럼 선택 상태를 갖지 않습니다. */}
+                <TabLink href="/" active={false}>
+                  과목선택
+                </TabLink>
+                <span className="h-4 w-px shrink-0 bg-line" aria-hidden="true" />
                 <TabLink
                   href={`/study?subject=${encodeURIComponent(subject.code)}`}
                   active={pathname === "/study"}
@@ -62,7 +67,7 @@ export function AppShell({
             )}
             <Link
               href="/settings"
-              className="rounded-lg px-2 py-1.5 text-xs text-muted hover:bg-surface2"
+              className="shrink-0 rounded-lg px-1.5 py-1.5 text-[0.7rem] text-muted hover:bg-surface2 sm:px-2 sm:text-xs"
               aria-label="설정"
             >
               설정
@@ -96,7 +101,7 @@ function TabLink({
     <Link
       href={href}
       className={cx(
-        "rounded-md px-2.5 py-1.5 text-center text-xs font-semibold transition",
+        "shrink-0 rounded-md px-1.5 py-1.5 text-center text-[0.7rem] font-semibold transition sm:px-2.5 sm:text-xs",
         active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
       )}
       aria-current={active ? "page" : undefined}

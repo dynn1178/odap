@@ -249,7 +249,7 @@ function LevelSection({
           {hasHistory ? (
             <>
               <p className="mb-2 text-xs text-muted">
-                초록(정복)이 자라고 빨강(노크 중)이 줄면 잘 되고 있는 거예요.
+                초록(마스터)이 자라고 빨강(노크 중)이 줄면 잘 되고 있는 거예요.
               </p>
               <LevelTrendChart points={points} />
             </>
@@ -333,7 +333,7 @@ const METRIC_TABS: {
     format: (r) => `${r.accuracy}%`,
     note: `${ACCURACY_MIN_SOLVED}문제 이상 푼 사람만 집계합니다`,
   },
-  { key: "mastered", label: "정복", value: (r) => r.mastered, format: (r) => `${r.mastered}문제`, note: "score 0 까지 내려놓은 문제 수" },
+  { key: "mastered", label: "마스터", value: (r) => r.mastered, format: (r) => `${r.mastered}문제`, note: "score 0 까지 내려놓은 문제 수" },
   { key: "days", label: "출석일수", value: (r) => r.days, format: (r) => `${r.days}일` },
   { key: "streak", label: "연속출석", value: (r) => r.streak, format: (r) => `${r.streak}일째`, note: "오늘 또는 어제까지 이어진 날 수" },
   { key: "best", label: "하루 최다", value: (r) => r.best, format: (r) => `${r.best}문제`, note: "하루에 가장 많이 푼 기록" },

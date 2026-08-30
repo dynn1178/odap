@@ -34,7 +34,7 @@ export type RankingRow = {
   days: number;
   /** 오늘/어제까지 이어진 연속 출석일 */
   streak: number;
-  /** 마지막 스냅샷 기준 정복한 문제 수 */
+  /** 마지막 스냅샷 기준 마스터한 문제 수 */
   mastered: number;
   /** 하루 최다 풀이 */
   best: number;

@@ -37,6 +37,32 @@ function shortDate(d: string): string {
   return d.slice(5).replace("-", ".");
 }
 
+/**
+ * 각진 꺾은선 대신 부드러운 곡선.
+ * Catmull-Rom 을 3차 베지어로 바꿔 그립니다 — 지나는 점은 그대로 두고 사이만 둥글게 잇습니다.
+ * tension 을 낮게(0.5 미만) 잡아 값이 없는 곳까지 곡선이 튀어 오르지 않게 했습니다.
+ */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+
+  const t = 0.35;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) * t * 0.5;
+    const c1y = p1.y + (p2.y - p0.y) * t * 0.5;
+    const c2x = p2.x - (p3.x - p1.x) * t * 0.5;
+    const c2y = p2.y - (p3.y - p1.y) * t * 0.5;
+    d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
+
 /** 축 눈금 3칸이면 충분합니다. 격자가 촘촘하면 선보다 격자가 먼저 읽힙니다. */
 function ticks(max: number): number[] {
   return [0, max / 2, max];
@@ -73,7 +99,7 @@ export function TrendChart({ points, metric }: { points: DailyPoint[]; metric: M
   const x = (i: number) => PAD.left + (points.length > 1 ? i * stepX : innerW / 2);
   const y = (v: number) => PAD.top + innerH - (Math.min(v, max) / max) * innerH;
 
-  const line = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
+  const line = smoothPath(values.map((v, i) => ({ x: x(i), y: y(v) })));
   const area = points.length
     ? `${line} L${x(values.length - 1)},${PAD.top + innerH} L${x(0)},${PAD.top + innerH} Z`
     : "";
@@ -185,7 +211,7 @@ export function TrendChart({ points, metric }: { points: DailyPoint[]; metric: M
   );
 }
 
-/** 날짜별 난이도 구간 누적 막대 — 초록(정복)이 자랄수록 잘 되고 있는 겁니다. */
+/** 날짜별 난이도 구간 누적 막대 — 초록(마스터)이 자랄수록 잘 되고 있는 겁니다. */
 export function LevelTrendChart({ points }: { points: DailyPoint[] }) {
   const [ref, width] = useChartWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -488,7 +514,7 @@ export function DailyTable({ points }: { points: DailyPoint[] }) {
                 <th className="px-2 py-2 text-right font-medium">푼 문제</th>
                 <th className="px-2 py-2 text-right font-medium">정답률</th>
                 <th className="px-2 py-2 text-right font-medium">학습시간</th>
-                <th className="px-3 py-2 text-right font-medium">정복/익숙/노크</th>
+                <th className="px-3 py-2 text-right font-medium">마스터/익숙/노크</th>
               </tr>
             </thead>
             <tbody>

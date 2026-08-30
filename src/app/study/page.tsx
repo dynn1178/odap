@@ -200,7 +200,7 @@ function StudyInner() {
 
       {data && (
         <>
-          <div className="mb-3 flex items-center justify-between gap-2 text-xs text-muted">
+          <div className="mb-2 flex items-center justify-between gap-2 text-[0.7rem] text-muted">
             <span className="tabular-nums">
               이번 세션 {session.solved}문제
               {session.solved > 0 && (
@@ -242,7 +242,7 @@ function StudyInner() {
           )}
 
           {current && (
-            <div className="space-y-4">
+            <div>
               <QuestionBody
                 question={current.q}
                 options={current.options}
@@ -262,7 +262,9 @@ function StudyInner() {
                 />
               )}
 
-              <PortalSearch text={current.q.text} />
+              <div className="mt-4">
+                <PortalSearch text={current.q.text} />
+              </div>
             </div>
           )}
         </>
@@ -271,6 +273,11 @@ function StudyInner() {
   );
 }
 
+/**
+ * 지문은 헤더 바로 아래에 붙여 두고, 보기부터는 페이지와 함께 흐릅니다.
+ * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
+ * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
+ */
 function QuestionBody({
   question,
   options,
@@ -283,12 +290,14 @@ function QuestionBody({
   onPick: (option: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface p-4 sm:p-6">
-      <p className="whitespace-pre-wrap break-words text-[1.15rem] font-semibold leading-relaxed">
-        {question.text}
-      </p>
+    <>
+      <div className="sticky top-[var(--header-h)] z-10 -mx-3 border-b border-line bg-bg px-3 py-3 sm:-mx-4 sm:px-4">
+        <p className="max-h-[34dvh] overflow-y-auto whitespace-pre-wrap break-words text-[1.05rem] font-semibold leading-relaxed">
+          {question.text}
+        </p>
+      </div>
 
-      <ul className="mt-5 space-y-2">
+      <ul className="mt-3 space-y-2">
         {options.map((option) => {
           const isAnswer = option === question.answer;
           const isPicked = graded?.picked === option;
@@ -301,7 +310,7 @@ function QuestionBody({
                 disabled={revealed}
                 onClick={() => onPick(option)}
                 className={cx(
-                  "flex w-full items-start gap-2.5 rounded-xl border px-4 py-3 text-left text-[0.98rem] leading-relaxed transition",
+                  "flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[0.95rem] leading-relaxed transition",
                   "min-h-[44px] disabled:cursor-default",
                   !revealed && "border-line bg-surface hover:border-brand/60 hover:bg-surface2",
                   revealed && isAnswer && "border-correct bg-correct/10 text-correct",
@@ -318,7 +327,7 @@ function QuestionBody({
           );
         })}
       </ul>
-    </div>
+    </>
   );
 }
 
@@ -340,19 +349,19 @@ function ResponsePanel({
   onRespond: (kind: AnswerKind) => void;
 }) {
   return (
-    <div className="animate-fade-up space-y-3">
+    <div className="animate-fade-up mt-3 space-y-2.5">
       <div
         className={cx(
-          "flex items-center gap-3 rounded-2xl border p-4",
+          "flex items-center gap-2.5 rounded-xl border px-3 py-2.5",
           isCorrect ? "border-correct/40 bg-correct/5" : "border-brand/40 bg-brand/5",
         )}
       >
         {isCorrect ? (
-          <span className="text-2xl" aria-hidden="true">
+          <span className="text-xl" aria-hidden="true">
             ✅
           </span>
         ) : (
-          <KnockingDoor size={36} />
+          <KnockingDoor size={28} />
         )}
         <div className="min-w-0">
           <p className={cx("font-bold", isCorrect ? "text-correct" : "text-brand")}>
@@ -367,29 +376,36 @@ function ResponsePanel({
       </div>
 
       {explanation && (
-        <div className="rounded-2xl border border-line bg-surface2 p-4 text-sm leading-relaxed">
+        <div className="rounded-xl border border-line bg-surface2 p-3 text-[0.9rem] leading-relaxed">
           <p className="mb-1 text-xs font-bold text-muted">해설</p>
           <p className="whitespace-pre-wrap break-words">{explanation}</p>
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 border-t border-line bg-bg/90 px-4 pb-4 pt-3 backdrop-blur safe-bottom sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        <p className="mb-2 text-xs text-muted">
+      {/* 항상 한 줄. 세로로 쌓으면 모바일에서 화면의 절반을 먹습니다. */}
+      <div>
+        <p className="mb-1.5 text-xs text-muted">
           {isCorrect ? "얼마나 확실했나요?" : "얼마나 어려웠나요?"}
         </p>
-        <div className={cx("grid gap-2", responses.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+        <div
+          className={cx(
+            "grid gap-1.5",
+            responses.length === 2 ? "grid-cols-2" : "grid-cols-3",
+          )}
+        >
           {responses.map(({ kind, phrase }) => (
             <button
               key={kind}
               type="button"
               onClick={() => onRespond(kind)}
               className={cx(
-                "flex min-h-[52px] flex-col items-center justify-center rounded-xl border px-3 py-2 font-semibold transition active:scale-[0.98]",
+                "flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl border px-1.5 py-2 text-center font-semibold leading-tight transition active:scale-[0.98]",
+                "text-[0.78rem] break-keep sm:text-[0.9rem]",
                 kindStyle(kind),
               )}
             >
               <span>{phrase}</span>
-              <span className="mt-0.5 text-[0.68rem] font-medium opacity-60">
+              <span className="text-[0.62rem] font-medium opacity-60">
                 {badgeText(kind, rec)}
               </span>
             </button>

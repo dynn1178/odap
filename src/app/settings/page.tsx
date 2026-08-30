@@ -22,10 +22,25 @@ export default function SettingsPage() {
   const { me } = useAuth();
   const router = useRouter();
 
+  /** 설정은 고르는 즉시 저장되므로, 버튼은 "저장"이 아니라 "돌아가기"입니다.
+   *  주소창으로 바로 들어와 뒤로 갈 곳이 없으면 과목 선택으로 보냅니다. */
+  const goBack = () => {
+    if (window.history.length > 1) router.back();
+    else router.push("/");
+  };
+
   return (
     <AppShell>
-      <div className="space-y-8">
-        <Section title="화면 설정" hint="이 기기에만 저장됩니다">
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={goBack}
+          className="-ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm text-muted hover:text-ink"
+        >
+          <span aria-hidden="true">←</span> 돌아가기
+        </button>
+
+        <Section title="화면 설정" hint="고르면 바로 저장됩니다 · 이 기기에만 적용">
           <div className="space-y-5">
             <Choice
               label="테마"
@@ -87,7 +102,13 @@ export default function SettingsPage() {
           </Section>
         )}
 
-        <p className="pb-4 text-center text-xs leading-relaxed text-muted">
+        <div className="sticky bottom-0 -mx-3 border-t border-line bg-bg/90 px-3 pb-3 pt-3 backdrop-blur safe-bottom sm:-mx-4 sm:px-4">
+          <button type="button" onClick={goBack} className={cx(btn.primary, "w-full")}>
+            확인
+          </button>
+        </div>
+
+        <p className="pb-2 text-center text-xs leading-relaxed text-muted">
           두드리면 열릴지어다.
           <br />
           오답 두드리기, 오답노크.

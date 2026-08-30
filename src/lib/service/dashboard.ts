@@ -169,7 +169,7 @@ export async function buildDashboard(
     a.seconds += r.seconds;
     a.best = Math.max(a.best, r.solved);
     if (r.solved > 0) a.dates.add(r.date);
-    // 정복 수는 누적이 아니라 "가장 최근 스냅샷" 값입니다.
+    // 마스터 수는 누적이 아니라 "가장 최근 스냅샷" 값입니다.
     if (r.levels && r.date >= a.lastLevelDate) {
       a.mastered = r.levels.done;
       a.lastLevelDate = r.date;

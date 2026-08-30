@@ -32,12 +32,12 @@ function clampScore(n: number): number {
 /**
  * ─── 난이도 구간 (대시보드 분포/추이) ───
  * 문제 1,000개를 한 줄씩 보여주면 느리고 읽히지도 않아서,
- * score 를 세 구간으로 접어 "얼마나 정복했는지"만 봅니다.
+ * score 를 세 구간으로 접어 "얼마나 마스터했는지"만 봅니다.
  *
  * 구간을 3개로 둔 이유: 4개로 나누면 인접한 두 색이 색각이상에서 구분되지 않습니다.
  */
 export const LEVEL_BANDS = [
-  { key: "done", label: "정복", hint: "score 0" },
+  { key: "done", label: "마스터", hint: "score 0" },
   { key: "mid", label: "익숙", hint: "score 1–3" },
   { key: "hot", label: "노크 중", hint: `score 4–${MAX_SCORE}` },
 ] as const;
@@ -70,7 +70,7 @@ export function totalLevels(c: LevelCounts): number {
   return c.done + c.mid + c.hot;
 }
 
-/** 일별통계 셀에 "정복,익숙,노크중" 한 칸으로 저장합니다. */
+/** 일별통계 셀에 "마스터,익숙,노크중" 한 칸으로 저장합니다. */
 export function serializeLevels(c: LevelCounts): string {
   return `${c.done},${c.mid},${c.hot}`;
 }

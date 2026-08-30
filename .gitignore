@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+
+# 환경변수 / 서비스 계정 키 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+*-service-account*.json
+service-account*.json
+credentials*.json
+
+*.tsbuildinfo
+next-env.d.ts
+.vercel

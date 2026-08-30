@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────
+   색 토큰 — 컴포넌트에서는 이 토큰만 사용합니다.
+   라이트가 기본, .dark 클래스가 붙으면 다크로 전환됩니다.
+   ───────────────────────────────────────────── */
+:root {
+  --bg: 250 249 246;
+  --surface: 255 255 255;
+  --surface-2: 244 241 235;
+  --border: 226 221 211;
+  --text: 28 25 23;
+  --muted: 120 113 108;
+
+  --brand: 180 83 9;
+  --brand-fg: 255 255 255;
+
+  --correct: 21 128 61;
+  --wrong: 185 28 28;
+  --lucky: 161 98 7;
+  --lvl1: 194 120 3;
+  --lvl2: 190 40 40;
+  --lvl3: 140 20 20;
+
+  /* 난이도 분포 차트 전용 3단계.
+     lvl1~3 을 그대로 쓰면 인접한 두 빨강이 색각이상에서 구분되지 않아
+     (ΔE 11.6 < 15) 차트용으로 따로 검증한 값을 씁니다. */
+  --dist-done: 22 101 52;
+  --dist-mid: 217 119 6;
+  --dist-hot: 185 28 28;
+
+  /* 글자 크기: 설정에서 15/17/19/21px 로 바뀝니다 */
+  --app-font-size: 17px;
+
+  /* 폰트: 설정에서 교체됩니다 */
+  --font-app: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 24 22 20;
+  --surface: 34 31 28;
+  --surface-2: 45 41 37;
+  --border: 64 58 52;
+  --text: 240 237 232;
+  --muted: 161 152 143;
+
+  --brand: 245 177 76;
+  --brand-fg: 40 25 5;
+
+  /* 다크에서는 채도를 낮춘 값을 씁니다 */
+  --correct: 86 196 126;
+  --wrong: 226 122 122;
+  --lucky: 214 165 60;
+  --lvl1: 214 165 60;
+  --lvl2: 226 122 122;
+  --lvl3: 205 95 95;
+
+  /* 다크는 밝기 대역이 좁아 라이트 값을 그대로 쓸 수 없어 따로 검증했습니다. */
+  --dist-done: 31 138 87;
+  --dist-mid: 176 144 12;
+  --dist-hot: 194 78 78;
+
+  color-scheme: dark;
+}
+
+html {
+  font-size: var(--app-font-size);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: var(--font-app);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 모바일에서 입력 시 화면이 확대되지 않도록 */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: max(1rem, 16px);
+}
+
+/* iOS 하단 안전영역 */
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* 가로로 넘치는 표는 스스로 스크롤 */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+::selection {
+  background: rgb(var(--brand) / 0.25);
+}

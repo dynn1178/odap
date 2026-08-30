@@ -70,7 +70,7 @@ export function QuestionDetail({
         {row.open ? (
           <div className="rounded-xl border border-correct bg-correct/10 px-3.5 py-2.5 text-sm font-semibold text-correct">
             <span className="mr-2 text-xs font-normal opacity-70">주관식 정답</span>
-            {displayAnswer(row.answer)}
+            {displayAnswer(row.answer, row.open)}
           </div>
         ) : (
         <ul className="space-y-2">

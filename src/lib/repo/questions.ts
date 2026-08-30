@@ -118,7 +118,7 @@ function addReverse(questions: Question[]): void {
 
   for (const q of questions) {
     // 정답이 여러 개면 첫 번째를 문제로 씁니다.
-    const [primary] = acceptedAnswers(q.answer);
+    const [primary] = acceptedAnswers(q.answer, q.open);
     if (!primary) continue;
 
     const reverse: Facing = { text: primary, answer: q.text, options: [] };

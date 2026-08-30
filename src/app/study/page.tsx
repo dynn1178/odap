@@ -402,6 +402,7 @@ function StudyInner() {
                   typo={graded.typo}
                   greeting={graded.greeting}
                   answer={current.answer}
+                  open={current.q.open}
                   explanation={current.q.explanation}
                   rec={current.rec}
                   responses={responses}
@@ -492,7 +493,7 @@ function QuestionBody({
                 ? "오타는 넘어갈게요 — 정답으로 처리했어요."
                 : graded!.isCorrect
                   ? "정답이에요."
-                  : `정답: ${displayAnswer(answer)}`}
+                  : `정답: ${displayAnswer(answer, true)}`}
             </p>
           )}
         </form>
@@ -536,6 +537,7 @@ function ResponsePanel({
   typo,
   greeting,
   answer,
+  open,
   explanation,
   rec,
   responses,
@@ -545,6 +547,7 @@ function ResponsePanel({
   typo: boolean;
   greeting: string;
   answer: string;
+  open: boolean;
   explanation: string;
   rec: Record0;
   responses: { kind: AnswerKind; phrase: string }[];
@@ -571,7 +574,7 @@ function ResponsePanel({
           </p>
           {!isCorrect && (
             <p className="mt-0.5 break-words text-sm text-muted">
-              정답은 <b className="text-ink">{displayAnswer(answer)}</b> 였어요.
+              정답은 <b className="text-ink">{displayAnswer(answer, open)}</b> 였어요.
             </p>
           )}
         </div>

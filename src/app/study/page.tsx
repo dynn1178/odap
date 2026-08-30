@@ -293,14 +293,28 @@ function StudyInner() {
       {data && (
         <>
           <div className="mb-2 flex items-center justify-between gap-2 text-[0.7rem] text-muted">
-            <span className="tabular-nums">
+            <span className="min-w-0 truncate tabular-nums">
               이번 세션 {session.solved}문제
               {session.solved > 0 && (
                 <> · 정답률 {Math.round((session.correct / session.solved) * 100)}%</>
               )}
             </span>
-            <span className="flex items-center gap-2">
+            <span className="flex shrink-0 items-center gap-2">
               {queue.pending > 0 && <span>저장 대기 {queue.pending}</span>}
+              {/* 문제은행은 15분 캐시라, 시트를 고쳐도 바로 안 보일 수 있습니다.
+                  페이지 새로고침으로는 서버 캐시가 안 지워져서 버튼을 따로 둡니다. */}
+              <button
+                type="button"
+                className="text-muted underline hover:text-ink"
+                onClick={async () => {
+                  await fetch(
+                    `/api/cache/purge?key=questions:${encodeURIComponent(subjectCode)}`,
+                  ).catch(() => null);
+                  load();
+                }}
+              >
+                시트 다시 읽기
+              </button>
               {data.warnings.length > 0 && (
                 <button
                   type="button"

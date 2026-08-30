@@ -19,7 +19,7 @@ const EMAIL = need("GOOGLE_SERVICE_ACCOUNT_EMAIL");
 const KEY = need("GOOGLE_PRIVATE_KEY").replace(/\\n/g, "\n");
 
 const HEADERS = {
-  과목목록: ["과목코드", "과목명", "상위그룹", "문제시트명", "설명", "노출순서", "사용여부"],
+  과목목록: ["과목코드", "과목명", "상위그룹", "문제시트명", "설명", "노출순서", "사용여부", "양방향"],
   회원: ["회원ID", "이름", "PIN해시", "솔트", "가입일시", "최근접속일시"],
   진도: ["회원ID", "과목코드", "진도데이터", "갱신일시"],
   일별통계: ["회원ID", "날짜", "과목코드", "푼문제수", "정답수", "오답수", "학습시간초", "난이도분포"],
@@ -38,7 +38,10 @@ const QUESTION_HEADERS = [
   "보기7",
   "해설",
   "사용여부",
+  "주관식",
 ];
+
+const NEWLINE = String.fromCharCode(10);
 
 const SAMPLE_SHEET = "문제_샘플";
 const SAMPLE_SUBJECT = ["SAMPLE", "샘플 과목", "", SAMPLE_SHEET, "설치가 잘 됐는지 확인용", "1", "Y"];
@@ -149,6 +152,21 @@ async function main() {
 
   for (const [name, headers] of Object.entries(HEADERS)) {
     await ensureSheet(name, headers, existing);
+  }
+
+  // 과목목록에 등록된 문제 시트들도 헤더를 챙깁니다 (새 컬럼이 생겼을 때 자동 반영).
+  const subjectRows = await getRange(`'과목목록'!A2:D`);
+  const questionSheets = [...new Set(subjectRows.map((r) => (r[3] ?? "").trim()).filter(Boolean))];
+  if (questionSheets.length > 0) {
+    console.log(`${NEWLINE}등록된 문제 시트 확인`);
+    const existingNow = await titles();
+    for (const name of questionSheets) {
+      if (!existingNow.includes(name)) {
+        console.log(`  ! 시트 없음: ${name} (과목목록의 문제시트명을 확인하세요)`);
+        continue;
+      }
+      await ensureSheet(name, QUESTION_HEADERS, existingNow);
+    }
   }
 
   const subjects = await getRange(`'과목목록'!A2:A`);

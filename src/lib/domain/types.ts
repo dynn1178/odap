@@ -7,6 +7,16 @@ export type Subject = {
   sheetName: string;
   description: string;
   order: number;
+  /** 한 행에서 정방향·역방향을 모두 내는 과목 (영단어 등) */
+  bidirectional: boolean;
+};
+
+/** 한 문제를 화면에 내는 한 가지 방식 (양방향 과목은 방향이 둘) */
+export type Facing = {
+  text: string;
+  answer: string;
+  /** 정답 + 오답 (주관식이면 비어 있습니다) */
+  options: string[];
 };
 
 export type Question = {
@@ -16,6 +26,14 @@ export type Question = {
   /** 정답 + 오답을 모두 담은 원본 보기 목록 (중복 제거·빈칸 제거 완료, 셔플 전) */
   options: string[];
   explanation: string;
+  /** 보기 대신 직접 입력받아 채점 */
+  open: boolean;
+  /**
+   * 뒤집은 문제 (양방향 과목만).
+   * 학습 기록은 원래 문제와 같은 문제ID 로 합쳐서 남깁니다 —
+   * 방향마다 따로 남기면 진도 셀 용량이 두 배가 됩니다.
+   */
+  reverse?: Facing;
 };
 
 /**

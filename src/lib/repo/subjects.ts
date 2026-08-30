@@ -25,6 +25,7 @@ export async function listSubjects(): Promise<Subject[]> {
         sheetName,
         description: t.opt(row, SUBJECT_COLS.description),
         order: Number(t.opt(row, SUBJECT_COLS.order)) || 0,
+        bidirectional: t.opt(row, SUBJECT_COLS.bidirectional).toUpperCase() === "Y",
       });
     });
 

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { HistoryLegend, HistoryTimeline } from "@/components/HistoryTimeline";
 import { btn, cx } from "@/components/ui";
+import { displayAnswer } from "@/lib/domain/grade";
 import type { ReviewRow } from "@/lib/domain/view-types";
 
 /**
@@ -60,6 +61,18 @@ export function QuestionDetail({
           </button>
         </div>
 
+        {row.reverseText && (
+          <p className="mb-3 rounded-lg bg-surface2 px-3 py-2 text-xs text-muted">
+            뒤집으면 <b className="text-ink">{row.reverseText}</b> → {row.text}
+          </p>
+        )}
+
+        {row.open ? (
+          <div className="rounded-xl border border-correct bg-correct/10 px-3.5 py-2.5 text-sm font-semibold text-correct">
+            <span className="mr-2 text-xs font-normal opacity-70">주관식 정답</span>
+            {displayAnswer(row.answer)}
+          </div>
+        ) : (
         <ul className="space-y-2">
           {row.options.map((o) => {
             const isAnswer = o === row.answer;
@@ -81,6 +94,7 @@ export function QuestionDetail({
             );
           })}
         </ul>
+        )}
 
         {row.explanation && (
           <div className="mt-4 rounded-xl bg-surface2 p-3.5 text-sm leading-relaxed">

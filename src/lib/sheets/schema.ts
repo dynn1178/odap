@@ -26,6 +26,8 @@ export const SUBJECT_COLS = {
   description: "설명",
   order: "노출순서",
   active: "사용여부",
+  /** Y 면 한 행에서 정방향·역방향 문제를 모두 냅니다 (영단어 과목용) */
+  bidirectional: "양방향",
 } as const;
 
 /** 문제_○○○ 시트 (과목마다 1개) */
@@ -35,6 +37,8 @@ export const QUESTION_COLS = {
   answer: "정답",
   explanation: "해설",
   active: "사용여부",
+  /** Y 면 보기 대신 직접 입력받아 채점합니다 */
+  open: "주관식",
 } as const;
 
 /** 오답 보기 컬럼: 보기2 ~ 보기7 (빈칸 허용) */
@@ -93,6 +97,7 @@ export const DEFAULT_HEADERS: Record<string, string[]> = {
     SUBJECT_COLS.description,
     SUBJECT_COLS.order,
     SUBJECT_COLS.active,
+    SUBJECT_COLS.bidirectional,
   ],
   [SHEET.users]: [
     USER_COLS.id,
@@ -135,4 +140,5 @@ export const QUESTION_SHEET_HEADERS: string[] = [
   ...OPTION_COLS,
   QUESTION_COLS.explanation,
   QUESTION_COLS.active,
+  QUESTION_COLS.open,
 ];

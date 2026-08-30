@@ -130,7 +130,11 @@ export type ReviewRow = {
   id: string;
   text: string;
   answer: string;
+  /** 주관식이면 비어 있습니다 */
   options: string[];
+  open: boolean;
+  /** 양방향 과목이면 뒤집었을 때의 지문 */
+  reverseText?: string;
   explanation: string;
   score: number;
   streak: number;

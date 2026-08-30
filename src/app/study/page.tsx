@@ -6,10 +6,11 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { AppShell } from "@/components/AppShell";
 import { KnockingDoor } from "@/components/KnockLogo";
 import { PortalSearch } from "@/components/PortalSearch";
-import { cx, Empty, ErrorBox, Spinner } from "@/components/ui";
+import { btn, cx, Empty, ErrorBox, Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuestionTimer } from "@/hooks/useQuestionTimer";
 import { useSyncQueue } from "@/hooks/useSyncQueue";
+import { displayAnswer, gradeOpen } from "@/lib/domain/grade";
 import { pickGreeting, pickPhrase } from "@/lib/domain/phrases";
 import { applyAnswer, emptyRecord, requiredStreak, SCORE_DELTA } from "@/lib/domain/progress";
 import { pickNextQuestion, shuffle } from "@/lib/domain/select";
@@ -20,12 +21,37 @@ type StudyData = {
   questions: Question[];
   warnings: string[];
   progress: ProgressMap;
+  bidirectional: boolean;
 };
 
-type Current = { q: Question; options: string[]; rec: Record0 };
-type Graded = { picked: string; isCorrect: boolean; seconds: number; greeting: string };
+/** 화면에 실제로 낸 문제 — 양방향 과목이면 방향에 따라 지문/정답/보기가 달라집니다 */
+type Current = {
+  q: Question;
+  text: string;
+  answer: string;
+  options: string[];
+  rec: Record0;
+};
+
+type Graded = {
+  picked: string;
+  isCorrect: boolean;
+  /** 주관식에서 오타로 넘어간 경우 */
+  typo: boolean;
+  seconds: number;
+  greeting: string;
+};
+
+/** 출제 방향 — 역방향은 사용자가 직접 고른 경우에만 나옵니다 */
+type Direction = "forward" | "reverse" | "mixed";
+const DIRECTION_LABELS: Record<Direction, string> = {
+  forward: "정방향",
+  reverse: "역방향",
+  mixed: "섞어서",
+};
 
 const RECENT_KEY = (code: string) => `odap.recent.${code}`;
+const DIRECTION_KEY = (code: string) => `odap.direction.${code}`;
 
 export default function StudyPage() {
   return (
@@ -49,6 +75,8 @@ function StudyInner() {
   const [showWarnings, setShowWarnings] = useState(false);
   /** 심화 학습 진행 표시 (없으면 평소대로 가중 추첨) */
   const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
+  const [direction, setDirection] = useState<Direction>("forward");
+  const [typed, setTyped] = useState("");
 
   const progressRef = useRef<ProgressMap>({});
   /** 남은 심화 학습 문제. setState 업데이터 안에서 큐를 꺼내면
@@ -83,6 +111,12 @@ function StudyInner() {
         } catch {
           recentRef.current = [];
         }
+        try {
+          const d = localStorage.getItem(DIRECTION_KEY(subjectCode));
+          if (d === "forward" || d === "reverse" || d === "mixed") setDirection(d);
+        } catch {
+          /* 저장된 방향을 못 읽어도 정방향으로 계속합니다 */
+        }
         setData(body);
       })
       .catch((e: Error) => setError(e.message));
@@ -94,15 +128,23 @@ function StudyInner() {
 
   const show = useCallback(
     (q: Question) => {
+      // 역방향은 사용자가 직접 고른 경우에만 씁니다. 뒤집을 수 없는 문제는 정방향 그대로.
+      const useReverse =
+        !!q.reverse && (direction === "reverse" || (direction === "mixed" && Math.random() < 0.5));
+      const facing = useReverse ? q.reverse! : q;
+
       setGraded(null);
+      setTyped("");
       setCurrent({
         q,
-        options: shuffle(q.options),
+        text: facing.text,
+        answer: facing.answer,
+        options: shuffle(facing.options),
         rec: progressRef.current[q.id] ?? emptyRecord(),
       });
       timer.reset();
     },
-    [timer],
+    [timer, direction],
   );
 
   /**
@@ -164,7 +206,23 @@ function StudyInner() {
     const seconds = timer.stop();
     setGraded({
       picked: option,
-      isCorrect: option === current.q.answer,
+      isCorrect: option === current.answer,
+      typo: false,
+      seconds,
+      greeting: pickGreeting(),
+    });
+  };
+
+  /** 주관식 제출 — 대소문자·공백·마침표는 무시하고, 한 글자 오타까지는 넘어갑니다 */
+  const onSubmitTyped = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!current || graded || !typed.trim()) return;
+    const seconds = timer.stop();
+    const verdict = gradeOpen(typed, current.answer);
+    setGraded({
+      picked: typed.trim(),
+      isCorrect: verdict !== "wrong",
+      typo: verdict === "typo",
       seconds,
       greeting: pickGreeting(),
     });
@@ -255,6 +313,34 @@ function StudyInner() {
             </span>
           </div>
 
+          {data.bidirectional && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="shrink-0 text-[0.7rem] text-muted">출제 방향</span>
+              <div className="flex flex-1 gap-1 rounded-lg bg-surface2 p-0.5">
+                {(Object.keys(DIRECTION_LABELS) as Direction[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      setDirection(d);
+                      try {
+                        localStorage.setItem(DIRECTION_KEY(subjectCode), d);
+                      } catch {
+                        /* 저장 실패해도 이번 세션에는 적용됩니다 */
+                      }
+                    }}
+                    className={cx(
+                      "flex-1 rounded-md px-2 py-1.5 text-[0.72rem] font-semibold transition",
+                      direction === d ? "bg-surface text-ink shadow-sm" : "text-muted",
+                    )}
+                  >
+                    {DIRECTION_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {drill && (
             <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-brand/40 bg-brand/5 px-3 py-2 text-xs">
               <span className="min-w-0 truncate font-semibold text-brand">
@@ -299,8 +385,13 @@ function StudyInner() {
           {current && (
             <div>
               <QuestionBody
-                question={current.q}
+                text={current.text}
+                answer={current.answer}
                 options={current.options}
+                open={current.q.open}
+                typed={typed}
+                onTyped={setTyped}
+                onSubmitTyped={onSubmitTyped}
                 graded={graded}
                 onPick={onPick}
               />
@@ -308,8 +399,9 @@ function StudyInner() {
               {graded && (
                 <ResponsePanel
                   isCorrect={graded.isCorrect}
+                  typo={graded.typo}
                   greeting={graded.greeting}
-                  answer={current.q.answer}
+                  answer={current.answer}
                   explanation={current.q.explanation}
                   rec={current.rec}
                   responses={responses}
@@ -319,7 +411,7 @@ function StudyInner() {
 
               {/* 난이도 버튼과 충분히 떨어뜨려 둡니다 — 붙어 있으면 잘못 누르기 쉽습니다. */}
               <div className="mt-12 border-t border-line/60 pt-4">
-                <PortalSearch text={current.q.text} />
+                <PortalSearch text={current.text} />
               </div>
             </div>
           )}
@@ -334,61 +426,114 @@ function StudyInner() {
  * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
  * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
  */
+/**
+ * 지문은 헤더 바로 아래에 붙여 두고, 보기부터는 페이지와 함께 흐릅니다.
+ * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
+ * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
+ */
 function QuestionBody({
-  question,
+  text,
+  answer,
   options,
+  open,
+  typed,
+  onTyped,
+  onSubmitTyped,
   graded,
   onPick,
 }: {
-  question: Question;
+  text: string;
+  answer: string;
   options: string[];
+  open: boolean;
+  typed: string;
+  onTyped: (v: string) => void;
+  onSubmitTyped: (e: React.FormEvent) => void;
   graded: Graded | null;
   onPick: (option: string) => void;
 }) {
+  const revealed = Boolean(graded);
+
   return (
     <>
       <div className="sticky top-[var(--header-h)] z-10 -mx-3 border-b border-line bg-bg px-3 py-3 sm:-mx-4 sm:px-4">
         <p className="max-h-[34dvh] overflow-y-auto whitespace-pre-wrap break-words text-[1.05rem] font-semibold leading-relaxed">
-          {question.text}
+          {text}
         </p>
       </div>
 
-      <ul className="mt-3 space-y-2">
-        {options.map((option) => {
-          const isAnswer = option === question.answer;
-          const isPicked = graded?.picked === option;
-          const revealed = Boolean(graded);
+      {open ? (
+        <form onSubmit={onSubmitTyped} className="mt-3 space-y-2">
+          <input
+            value={revealed ? graded!.picked : typed}
+            onChange={(e) => onTyped(e.target.value)}
+            disabled={revealed}
+            autoFocus
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="답을 입력하세요"
+            className={cx(
+              "w-full rounded-xl border bg-surface px-4 py-3 outline-none disabled:opacity-90",
+              !revealed && "border-line focus:border-brand",
+              revealed && graded!.isCorrect && "border-correct bg-correct/10 text-correct",
+              revealed && !graded!.isCorrect && "border-wrong bg-wrong/10 text-wrong",
+            )}
+          />
+          {!revealed && (
+            <button type="submit" className={cx(btn.primary, "w-full")} disabled={!typed.trim()}>
+              제출
+            </button>
+          )}
+          {revealed && (
+            <p className="px-1 text-xs text-muted">
+              {graded!.typo
+                ? "오타는 넘어갈게요 — 정답으로 처리했어요."
+                : graded!.isCorrect
+                  ? "정답이에요."
+                  : `정답: ${displayAnswer(answer)}`}
+            </p>
+          )}
+        </form>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {options.map((option) => {
+            const isAnswer = option === answer;
+            const isPicked = graded?.picked === option;
 
-          return (
-            <li key={option}>
-              <button
-                type="button"
-                disabled={revealed}
-                onClick={() => onPick(option)}
-                className={cx(
-                  "flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[0.95rem] leading-relaxed transition",
-                  "min-h-[44px] disabled:cursor-default",
-                  !revealed && "border-line bg-surface hover:border-brand/60 hover:bg-surface2",
-                  revealed && isAnswer && "border-correct bg-correct/10 text-correct",
-                  revealed && isPicked && !isAnswer && "border-wrong bg-wrong/10 text-wrong",
-                  revealed && !isAnswer && !isPicked && "border-line opacity-55",
-                )}
-              >
-                <span aria-hidden="true" className="mt-0.5 w-4 shrink-0 text-center font-bold">
-                  {revealed ? (isAnswer ? "○" : isPicked ? "✕" : "") : ""}
-                </span>
-                <span className="whitespace-pre-wrap break-words">{option}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+            return (
+              <li key={option}>
+                <button
+                  type="button"
+                  disabled={revealed}
+                  onClick={() => onPick(option)}
+                  className={cx(
+                    "flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[0.95rem] leading-relaxed transition",
+                    "min-h-[44px] disabled:cursor-default",
+                    !revealed && "border-line bg-surface hover:border-brand/60 hover:bg-surface2",
+                    revealed && isAnswer && "border-correct bg-correct/10 text-correct",
+                    revealed && isPicked && !isAnswer && "border-wrong bg-wrong/10 text-wrong",
+                    revealed && !isAnswer && !isPicked && "border-line opacity-55",
+                  )}
+                >
+                  <span aria-hidden="true" className="mt-0.5 w-4 shrink-0 text-center font-bold">
+                    {revealed ? (isAnswer ? "○" : isPicked ? "✕" : "") : ""}
+                  </span>
+                  <span className="whitespace-pre-wrap break-words">{option}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </>
   );
 }
 
 function ResponsePanel({
   isCorrect,
+  typo,
   greeting,
   answer,
   explanation,
@@ -397,6 +542,7 @@ function ResponsePanel({
   onRespond,
 }: {
   isCorrect: boolean;
+  typo: boolean;
   greeting: string;
   answer: string;
   explanation: string;
@@ -421,11 +567,11 @@ function ResponsePanel({
         )}
         <div className="min-w-0">
           <p className={cx("font-bold", isCorrect ? "text-correct" : "text-brand")}>
-            {isCorrect ? "정답입니다" : greeting}
+            {isCorrect ? (typo ? "정답입니다 (오타 통과)" : "정답입니다") : greeting}
           </p>
           {!isCorrect && (
             <p className="mt-0.5 break-words text-sm text-muted">
-              정답은 <b className="text-ink">{answer}</b> 였어요.
+              정답은 <b className="text-ink">{displayAnswer(answer)}</b> 였어요.
             </p>
           )}
         </div>

@@ -56,6 +56,8 @@ export async function GET(req: Request) {
         answer: q.answer,
         // 시트에서는 정답이 늘 맨 앞이라 상세 모달에서도 순서를 섞습니다.
         options: shuffle(q.options),
+        open: q.open,
+        reverseText: q.reverse?.text,
         explanation: q.explanation,
         score: rec?.score ?? 0,
         streak: rec?.streak ?? 0,

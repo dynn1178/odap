@@ -17,6 +17,7 @@ type SubjectCard = {
   description: string;
   total: number;
   seen: number;
+  solved: number;
   knocking: number;
 };
 
@@ -120,6 +121,7 @@ export default function HomePage() {
                       </div>
                       <p className="mt-1.5 text-[0.72rem] text-muted tabular-nums">
                         {s.seen} / {s.total}문제 만나봤어요
+                        {s.solved > 0 && <> · 총 {s.solved.toLocaleString()}번 풀이</>}
                       </p>
                     </div>
                   </Link>

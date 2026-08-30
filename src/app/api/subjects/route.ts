@@ -12,7 +12,10 @@ export type SubjectCard = {
   group: string;
   description: string;
   total: number;
+  /** 한 번이라도 만나본 문제 수 */
   seen: number;
+  /** 지금까지 이 과목에서 문제를 푼 총 횟수 (같은 문제를 여러 번 풀면 그만큼 늘어납니다) */
+  solved: number;
   knocking: number;
 };
 
@@ -25,7 +28,7 @@ export async function GET() {
       subjects.map(async (s) => {
         const bank = await loadQuestionBank(s);
         const map = progress.get(s.code) ?? {};
-        const records = Object.values(map) as { score: number }[];
+        const records = Object.values(map) as { score: number; correct: number; wrong: number }[];
         return {
           code: s.code,
           name: s.name,
@@ -33,10 +36,16 @@ export async function GET() {
           description: s.description,
           total: bank.questions.length,
           seen: records.length,
+          solved: records.reduce((n, r) => n + r.correct + r.wrong, 0),
           knocking: records.filter((r) => r.score >= 7).length,
         };
       }),
     );
+
+    // 많이 푼 과목이 앞에 옵니다.
+    // JS sort 는 안정 정렬이고 subjects 가 이미 노출순서대로 와 있어서,
+    // 아직 안 푼 과목과 동점 과목은 시트의 노출순서를 그대로 따릅니다.
+    cards.sort((a, b) => b.solved - a.solved);
 
     return ok({ subjects: cards, loggedIn: Boolean(session) });
   });

@@ -11,17 +11,24 @@ import { cx } from "@/components/ui";
 export function HistoryTimeline({
   history,
   size = "sm",
+  /** 좁은 목록에서 줄바꿈되지 않도록 최근 N개만 보여줍니다 */
+  limit,
 }: {
   history: string;
   size?: "sm" | "md";
+  limit?: number;
 }) {
   if (!history) return <span className="text-xs text-muted">기록 없음</span>;
 
   const box = size === "md" ? "h-6 w-6 text-[0.72rem]" : "h-5 w-5 text-[0.62rem]";
+  const shown = limit ? history.slice(-limit) : history;
 
   return (
-    <span className="inline-flex flex-wrap gap-1" aria-label={`최근 응답 ${history.length}회`}>
-      {[...history].map((ch, i) => {
+    <span
+      className={cx("inline-flex gap-1", limit ? "flex-nowrap" : "flex-wrap")}
+      aria-label={`최근 응답 ${history.length}회`}
+    >
+      {[...shown].map((ch, i) => {
         if (!isAnswerKind(ch)) return null;
         const meta = KIND_META[ch];
         return (

@@ -47,8 +47,13 @@ function StudyInner() {
   const [graded, setGraded] = useState<Graded | null>(null);
   const [session, setSession] = useState({ solved: 0, correct: 0 });
   const [showWarnings, setShowWarnings] = useState(false);
+  /** 심화 학습 진행 표시 (없으면 평소대로 가중 추첨) */
+  const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
 
   const progressRef = useRef<ProgressMap>({});
+  /** 남은 심화 학습 문제. setState 업데이터 안에서 큐를 꺼내면
+   *  StrictMode 가 업데이터를 두 번 부를 때 문제가 두 개씩 사라집니다. */
+  const drillRef = useRef<string[]>([]);
   const recentRef = useRef<string[]>([]);
   const lastPhraseRef = useRef<Partial<Record<AnswerKind, string>>>({});
 
@@ -87,13 +92,8 @@ function StudyInner() {
     if (me) load();
   }, [me, load]);
 
-  const nextQuestion = useCallback(
-    (questions: Question[]) => {
-      const q = pickNextQuestion(questions, progressRef.current, recentRef.current);
-      if (!q) {
-        setCurrent(null);
-        return;
-      }
+  const show = useCallback(
+    (q: Question) => {
       setGraded(null);
       setCurrent({
         q,
@@ -105,21 +105,55 @@ function StudyInner() {
     [timer],
   );
 
+  /**
+   * 심화 학습 중이면 그 묶음을 순서대로 소진하고, 다 풀면 평소 출제로 돌아갑니다.
+   * 평소에는 기획안 2-3 의 가중 추첨을 씁니다.
+   */
+  const nextQuestion = useCallback(
+    (questions: Question[]) => {
+      let picked: Question | undefined;
+
+      // 시트에서 빠진 문제는 건너뛰고 다음 것을 봅니다.
+      while (!picked && drillRef.current.length > 0) {
+        const head = drillRef.current.shift()!;
+        picked = questions.find((q) => q.id === head);
+      }
+
+      if (picked) {
+        setDrill((d) => (d ? { ...d, done: d.done + 1 } : d));
+      } else {
+        // 묶음을 다 풀었으면 평소 출제로 돌아갑니다.
+        setDrill(null);
+        picked = pickNextQuestion(questions, progressRef.current, recentRef.current);
+      }
+
+      if (!picked) {
+        setCurrent(null);
+        return;
+      }
+      show(picked);
+    },
+    [show],
+  );
+
   useEffect(() => {
     if (!data || current) return;
-    // 대시보드에서 "이 문제 다시 풀기"로 들어온 경우 그 문제를 먼저 냅니다.
-    const focusId = params.get("focus");
-    const target = focusId ? data.questions.find((q) => q.id === focusId) : undefined;
-    if (target) {
-      setGraded(null);
-      setCurrent({
-        q: target,
-        options: shuffle(target.options),
-        rec: progressRef.current[target.id] ?? emptyRecord(),
-      });
-      timer.reset();
+
+    // 대시보드에서 "몰아서 풀기"(또는 문제 하나 다시 풀기)로 들어온 경우.
+    const ids = (params.get("drill") ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const available = ids.filter((id) => data.questions.some((q) => q.id === id));
+
+    if (available.length > 0) {
+      const [head, ...rest] = available;
+      drillRef.current = rest;
+      setDrill({ label: params.get("label") ?? "심화 학습", done: 1, total: available.length });
+      show(data.questions.find((q) => q.id === head)!);
       return;
     }
+
     nextQuestion(data.questions);
     // 최초 1회만 문제를 뽑습니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,6 +255,27 @@ function StudyInner() {
             </span>
           </div>
 
+          {drill && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-brand/40 bg-brand/5 px-3 py-2 text-xs">
+              <span className="min-w-0 truncate font-semibold text-brand">
+                심화 학습 · {drill.label}
+                <span className="ml-1.5 font-medium tabular-nums text-muted">
+                  {drill.done}/{drill.total}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  drillRef.current = [];
+                  setDrill(null);
+                }}
+                className="shrink-0 text-muted underline"
+              >
+                평소대로 풀기
+              </button>
+            </div>
+          )}
+
           {queue.error && (
             <div className="mb-3 rounded-xl border border-lvl1/40 bg-lvl1/5 p-3 text-xs text-lvl1">
               {queue.error} 인터넷이 돌아오면 자동으로 다시 보냅니다.
@@ -262,7 +317,8 @@ function StudyInner() {
                 />
               )}
 
-              <div className="mt-4">
+              {/* 난이도 버튼과 충분히 떨어뜨려 둡니다 — 붙어 있으면 잘못 누르기 쉽습니다. */}
+              <div className="mt-12 border-t border-line/60 pt-4">
                 <PortalSearch text={current.q.text} />
               </div>
             </div>

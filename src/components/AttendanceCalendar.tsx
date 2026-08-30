@@ -33,12 +33,12 @@ export function AttendanceCalendar({ dates }: { dates: string[] }) {
   const countThisMonth = days.filter((d) => attended.has(d)).length;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="rounded-2xl border border-line bg-surface p-3">
+      <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
           onClick={() => move(-1)}
-          className="h-11 w-11 rounded-lg text-muted hover:bg-surface2"
+          className="h-10 w-10 rounded-lg text-muted hover:bg-surface2"
           aria-label="이전 달"
         >
           ‹
@@ -52,16 +52,16 @@ export function AttendanceCalendar({ dates }: { dates: string[] }) {
         <button
           type="button"
           onClick={() => move(1)}
-          className="h-11 w-11 rounded-lg text-muted hover:bg-surface2"
+          className="h-10 w-10 rounded-lg text-muted hover:bg-surface2"
           aria-label="다음 달"
         >
           ›
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-[0.68rem] text-muted">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[0.64rem] text-muted">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="py-1">
+          <div key={w} className="pb-0.5">
             {w}
           </div>
         ))}
@@ -74,14 +74,16 @@ export function AttendanceCalendar({ dates }: { dates: string[] }) {
           return (
             <div
               key={date}
+              /* 날짜 칸은 누르는 곳이 아니라서 정사각형일 필요가 없습니다.
+                 aspect-square 로 두면 폭을 따라 높이가 커져 세로로 화면을 다 먹습니다. */
               className={cx(
-                "flex aspect-square flex-col items-center justify-center rounded-lg text-[0.7rem]",
+                "flex h-7 items-center justify-center rounded-md text-[0.68rem]",
                 on ? "bg-brand/12 font-bold text-brand" : "text-muted",
                 isToday && "ring-1 ring-brand",
               )}
               title={on ? `${date} 학습함` : date}
             >
-              {on ? <KnockLogo size={16} /> : <span>{Number(date.slice(-2))}</span>}
+              {on ? <KnockLogo size={13} /> : <span>{Number(date.slice(-2))}</span>}
             </div>
           );
         })}

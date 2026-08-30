@@ -108,7 +108,7 @@ export function QuestionDetail({
 
         <div className="mt-6 flex gap-2">
           <Link
-            href={`/study?subject=${encodeURIComponent(subjectCode)}&focus=${encodeURIComponent(row.id)}`}
+            href={`/study?subject=${encodeURIComponent(subjectCode)}&drill=${encodeURIComponent(row.id)}&label=${encodeURIComponent("이 문제만")}`}
             className={cx(btn.primary, "flex-1")}
           >
             이 문제 다시 풀기

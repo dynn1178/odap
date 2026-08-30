@@ -101,12 +101,28 @@ export type LevelSummary = {
   total: number;
 };
 
+/**
+ * 심화 학습 묶음.
+ * "자주 노크 중" 하나만 두면 늘 같은 문제만 보게 되어서, 목적이 다른 묶음을 나눠 둡니다.
+ * 각 묶음은 통째로 몰아서 풀 수 있습니다.
+ */
+export type FocusBucketKey = "knocking" | "weak" | "recent" | "almost" | "unseen";
+
+export type FocusBucket = {
+  key: FocusBucketKey;
+  label: string;
+  /** 이 묶음이 무엇인지 한 줄 설명 */
+  hint: string;
+  rows: ReviewRow[];
+  /** 조건에 맞는 전체 개수 (rows 는 그중 일부) */
+  total: number;
+};
+
 /** 대시보드 "학습 인사이트" 응답 */
 export type InsightData = {
   subject: { code: string; name: string };
   levels: LevelSummary;
-  /** score 가 높아 지금 가장 자주 노크당하는 문제 몇 개만 */
-  focus: ReviewRow[];
+  buckets: FocusBucket[];
 };
 
 /** 문제 상세 모달이 쓰는 한 문제의 학습 이력 */

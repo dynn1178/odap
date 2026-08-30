@@ -7,6 +7,8 @@ import {
   ACCURACY_MIN_SOLVED,
   type DashboardData,
   type InsightData,
+  type FocusBucket,
+  type FocusBucketKey,
   type RankingMetric,
   type RankingRow,
   type ReviewRow,
@@ -262,42 +264,12 @@ function LevelSection({
           )}
         </Card>
 
-        {insight.focus.length > 0 && (
-          <Card className="p-0">
-            <p className="border-b border-line px-4 py-2.5 text-sm font-semibold">
-              지금 가장 자주 노크 중인 문제
-              <span className="ml-1.5 text-xs font-normal text-muted">
-                누르면 문제를 볼 수 있어요
-              </span>
-            </p>
-            <ul>
-              {insight.focus.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(r)}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface2"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
-                        {summarize(r.text)}
-                      </span>
-                      <span className="mt-1 flex items-center gap-2 text-[0.68rem] text-muted">
-                        <span>{r.id}</span>
-                        <span>
-                          {r.correct}/{r.total} · {r.accuracy}%
-                        </span>
-                        <HistoryTimeline history={r.history} />
-                      </span>
-                    </span>
-                    <span className="shrink-0 rounded-full bg-dist-hot/12 px-2 py-0.5 text-[0.68rem] font-semibold text-dist-hot">
-                      {r.weight}배
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
+        {insight.buckets.length > 0 && (
+          <FocusStudy
+            buckets={insight.buckets}
+            subjectCode={subjectCode}
+            onOpen={setSelected}
+          />
         )}
       </div>
 
@@ -309,6 +281,87 @@ function LevelSection({
         />
       )}
     </Section>
+  );
+}
+
+/**
+ * 심화 학습 — 목적이 다른 묶음을 탭으로 나눠 보여주고, 묶음째 몰아서 풀 수 있게 합니다.
+ * "자주 노크 중" 하나만 두면 늘 같은 문제만 다시 보게 됩니다.
+ */
+function FocusStudy({
+  buckets,
+  subjectCode,
+  onOpen,
+}: {
+  buckets: FocusBucket[];
+  subjectCode: string;
+  onOpen: (row: ReviewRow) => void;
+}) {
+  const [key, setKey] = useState<FocusBucketKey>(buckets[0].key);
+  const bucket = buckets.find((b) => b.key === key) ?? buckets[0];
+
+  const drillHref =
+    `/study?subject=${encodeURIComponent(subjectCode)}` +
+    `&drill=${encodeURIComponent(bucket.rows.map((r) => r.id).join(","))}` +
+    `&label=${encodeURIComponent(bucket.label)}`;
+
+  return (
+    <Card className="p-0">
+      <div className="border-b border-line p-3">
+        <div className="scroll-x -mx-1 px-1">
+          <div className="flex w-max gap-1.5">
+            {buckets.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => setKey(b.key)}
+                className={cx(
+                  "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                  b.key === key ? "bg-brand text-brand-fg" : "bg-surface2 text-muted hover:text-ink",
+                )}
+              >
+                {b.label}
+                <span className="ml-1 opacity-70">{b.total}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-2 text-[0.72rem] text-muted">{bucket.hint}</p>
+        <Link href={drillHref} className={cx(btn.primary, "mt-2.5 w-full")}>
+          이 {bucket.rows.length}문제 몰아서 풀기
+        </Link>
+      </div>
+
+      <ul>
+        {bucket.rows.map((r) => (
+          <li key={r.id}>
+            <button
+              type="button"
+              onClick={() => onOpen(r)}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface2"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{summarize(r.text)}</span>
+                {/* 좁은 화면에서 두 줄로 깨지지 않도록 문제ID 는 빼고 이력은 6개까지만 */}
+                <span className="mt-1 flex items-center gap-2 overflow-hidden text-[0.68rem] text-muted">
+                  <span className="shrink-0 tabular-nums">
+                    {r.total > 0 ? `${r.correct}/${r.total} · ${r.accuracy}%` : "아직 안 풀어봄"}
+                  </span>
+                  <HistoryTimeline history={r.history} limit={6} />
+                </span>
+              </span>
+              <span className="shrink-0 rounded-full bg-dist-hot/12 px-2 py-0.5 text-[0.68rem] font-semibold text-dist-hot">
+                {r.weight}배
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <p className="border-t border-line px-4 py-2 text-[0.68rem] text-muted">
+        문제를 누르면 정답·해설·응답 경과를 볼 수 있어요
+      </p>
+    </Card>
   );
 }
 

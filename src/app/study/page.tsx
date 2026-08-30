@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { KnockingDoor } from "@/components/KnockLogo";
+import { PortalSearch } from "@/components/PortalSearch";
 import { cx, Empty, ErrorBox, Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuestionTimer } from "@/hooks/useQuestionTimer";
@@ -260,6 +261,8 @@ function StudyInner() {
                   onRespond={onRespond}
                 />
               )}
+
+              <PortalSearch text={current.q.text} />
             </div>
           )}
         </>

@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { KnockLogo } from "@/components/KnockLogo";
 import { btn, Empty, ErrorBox, Spinner } from "@/components/ui";
-import { useAuth } from "@/hooks/useAuth";
+import { clearMeCache, useAuth } from "@/hooks/useAuth";
+import { pickHomeMessage } from "@/lib/domain/phrases";
+import { flushBeforeLogout } from "@/hooks/useSyncQueue";
 
 type SubjectCard = {
   code: string;
@@ -22,6 +24,8 @@ export default function HomePage() {
   const router = useRouter();
   const { me, loading: authLoading } = useAuth();
   const [subjects, setSubjects] = useState<SubjectCard[] | null>(null);
+  // 방문할 때마다 다른 문구. 화면이 다시 그려질 때 문구가 바뀌지 않도록 최초 1회만 뽑습니다.
+  const [homeMessage] = useState(pickHomeMessage);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,9 +69,7 @@ export default function HomePage() {
           <h1 className="text-lg font-bold">
             {me.name}님, 오늘도 <span className="text-brand">똑똑</span>
           </h1>
-          <p className="mt-1 text-sm text-muted">
-            공부할 과목을 고르세요. 두드리면 열릴지어다.
-          </p>
+          <p className="mt-1 text-sm text-muted">{homeMessage}</p>
         </div>
       </div>
 
@@ -129,26 +131,32 @@ export default function HomePage() {
       </div>
 
       <div className="mt-8">
-        <LogoutButton />
+        <LogoutButton userId={me.userId} />
       </div>
     </AppShell>
   );
 }
 
-function LogoutButton() {
+function LogoutButton({ userId }: { userId: string }) {
   const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
   return (
     <button
       type="button"
       className={btn.ghost}
+      disabled={busy}
       onClick={async () => {
+        setBusy(true);
+        // 세션이 살아 있을 때 남은 답안을 먼저 보냅니다.
+        // 못 보내면 백업이 이 회원 것으로 남아 다음 로그인 때 이어집니다.
+        await flushBeforeLogout(userId);
         await fetch("/api/auth/logout", { method: "POST" });
-        const { clearMeCache } = await import("@/hooks/useAuth");
         clearMeCache();
         router.replace("/login");
       }}
     >
-      로그아웃
+      {busy ? "저장 중…" : "로그아웃"}
     </button>
   );
 }

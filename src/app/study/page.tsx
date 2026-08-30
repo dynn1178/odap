@@ -53,7 +53,7 @@ function StudyInner() {
   const lastPhraseRef = useRef<Partial<Record<AnswerKind, string>>>({});
 
   const timer = useQuestionTimer();
-  const queue = useSyncQueue();
+  const queue = useSyncQueue(me?.userId ?? "");
 
   useEffect(() => {
     if (!authLoading && !me) router.replace("/login");

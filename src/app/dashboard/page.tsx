@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
-import type { DashboardData, InsightData, ReviewRow } from "@/lib/domain/view-types";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ACCURACY_MIN_SOLVED,
+  type DashboardData,
+  type InsightData,
+  type RankingMetric,
+  type RankingRow,
+  type ReviewRow,
+} from "@/lib/domain/view-types";
 import { AppShell } from "@/components/AppShell";
 import { AttendanceCalendar } from "@/components/AttendanceCalendar";
 import {
@@ -156,8 +163,8 @@ function DashboardInner() {
             <AttendanceCalendar dates={data.attendance} />
           </Section>
 
-          <Section title="랭킹" hint="이 과목의 누적 풀이 수 기준">
-            <Ranking rows={data.ranking} myRank={data.myRank} />
+          <Section title="랭킹" hint="이 과목을 함께 공부하는 사람들 · 지표를 골라 보세요">
+            <Ranking rows={data.ranking} />
           </Section>
 
           <Section title="방문자" hint="이 과목 기준">
@@ -310,45 +317,111 @@ function summarize(text: string): string {
   return flat.length > 34 ? `${flat.slice(0, 34)}…` : flat;
 }
 
-function Ranking({
-  rows,
-  myRank,
-}: {
-  rows: DashboardData["ranking"];
-  myRank: number | null;
-}) {
-  if (rows.length === 0) return <Empty>아직 이 과목을 푼 사람이 없어요.</Empty>;
+const METRIC_TABS: {
+  key: RankingMetric;
+  label: string;
+  format: (r: RankingRow) => string;
+  value: (r: RankingRow) => number;
+  note?: string;
+}[] = [
+  { key: "solved", label: "문제풀이", value: (r) => r.solved, format: (r) => `${r.solved.toLocaleString()}문제` },
+  { key: "seconds", label: "공부시간", value: (r) => r.seconds, format: (r) => formatDuration(r.seconds) },
+  {
+    key: "accuracy",
+    label: "정답률",
+    value: (r) => r.accuracy,
+    format: (r) => `${r.accuracy}%`,
+    note: `${ACCURACY_MIN_SOLVED}문제 이상 푼 사람만 집계합니다`,
+  },
+  { key: "mastered", label: "정복", value: (r) => r.mastered, format: (r) => `${r.mastered}문제`, note: "score 0 까지 내려놓은 문제 수" },
+  { key: "days", label: "출석일수", value: (r) => r.days, format: (r) => `${r.days}일` },
+  { key: "streak", label: "연속출석", value: (r) => r.streak, format: (r) => `${r.streak}일째`, note: "오늘 또는 어제까지 이어진 날 수" },
+  { key: "best", label: "하루 최다", value: (r) => r.best, format: (r) => `${r.best}문제`, note: "하루에 가장 많이 푼 기록" },
+];
+
+function Ranking({ rows }: { rows: RankingRow[] }) {
+  const [metric, setMetric] = useState<RankingMetric>("solved");
+  const tab = METRIC_TABS.find((t) => t.key === metric)!;
+
+  // 지표별로 다시 줄 세웁니다. rows 는 서버에서 가입 순으로 와 있어서
+  // (JS sort 는 안정 정렬) 동점자는 먼저 가입한 사람이 앞섭니다.
+  const ranked = useMemo(() => {
+    const pool =
+      metric === "accuracy" ? rows.filter((r) => r.solved >= ACCURACY_MIN_SOLVED) : rows;
+    return [...pool]
+      .filter((r) => tab.value(r) > 0)
+      .sort((a, b) => tab.value(b) - tab.value(a))
+      .slice(0, 50);
+  }, [rows, metric, tab]);
+
+  const myRank = ranked.findIndex((r) => r.isMe) + 1;
 
   return (
-    <Card className="p-0">
-      {myRank && (
-        <p className="border-b border-line px-4 py-2.5 text-xs text-muted">
-          내 순위 <b className="text-brand">{myRank}위</b>
-        </p>
-      )}
-      <ul>
-        {rows.map((r) => (
-          <li
-            key={r.userId}
-            className={cx(
-              "flex items-center gap-3 px-4 py-2.5 text-sm",
-              r.isMe && "bg-brand/8 font-semibold",
+    <div className="space-y-3">
+      <div className="scroll-x -mx-1 px-1">
+        <div className="flex w-max gap-1.5">
+          {METRIC_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setMetric(t.key)}
+              className={cx(
+                "shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition",
+                metric === t.key
+                  ? "bg-brand text-brand-fg"
+                  : "bg-surface2 text-muted hover:text-ink",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab.note && <p className="text-[0.7rem] text-muted">{tab.note}</p>}
+
+      {ranked.length === 0 ? (
+        <Empty>아직 이 지표로 집계할 기록이 없어요.</Empty>
+      ) : (
+        <Card className="p-0">
+          <p className="border-b border-line px-4 py-2.5 text-xs text-muted">
+            {myRank > 0 ? (
+              <>
+                {tab.label} 내 순위 <b className="text-brand">{myRank}위</b>
+              </>
+            ) : (
+              <>아직 이 지표 순위에 들지 않았어요</>
             )}
-          >
-            <span className="w-7 shrink-0 text-center tabular-nums text-muted">{r.rank}</span>
-            <span className="min-w-0 flex-1 truncate">
-              {r.name}
-              {r.isMe && <span className="ml-1 text-[0.7rem] text-brand">나</span>}
-            </span>
-            <span className="shrink-0 tabular-nums">{r.solved}문제</span>
-            <span className="w-14 shrink-0 text-right tabular-nums text-muted">
-              {r.accuracy}%
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+          </p>
+          <ul>
+            {ranked.map((r, i) => (
+              <li
+                key={r.userId}
+                className={cx(
+                  "flex items-center gap-3 px-4 py-2.5 text-sm",
+                  r.isMe && "bg-brand/8 font-semibold",
+                )}
+              >
+                <span className="w-7 shrink-0 text-center tabular-nums text-muted">
+                  {medal(i) ?? i + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  {r.name}
+                  {r.isMe && <span className="ml-1 text-[0.7rem] text-brand">나</span>}
+                </span>
+                <span className="shrink-0 tabular-nums">{tab.format(r)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
   );
+}
+
+/** 1~3위만 표시를 달리해, 색이 아니라 기호로도 구분되게 합니다. */
+function medal(index: number): string | null {
+  return ["🥇", "🥈", "🥉"][index] ?? null;
 }
 
 function Comments({

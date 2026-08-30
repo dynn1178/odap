@@ -10,22 +10,59 @@ const FLUSH_SIZE = 10;
 const FLUSH_INTERVAL_MS = 60_000;
 const MAX_RETRY = 3;
 
-function readBackup(): SyncEvent[] {
+/**
+ * 백업에 "누구 것인지"를 같이 적습니다.
+ * 한 브라우저를 여러 사람이 쓸 때, 못 보낸 답안이 다음 사람 기록으로 올라가면 안 됩니다.
+ */
+type Backup = { userId: string; events: SyncEvent[] };
+
+function readBackup(userId: string): SyncEvent[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Backup | SyncEvent[];
+    // 주인이 적혀 있지 않은 옛 형식은 누구 것인지 알 수 없어 버립니다.
+    if (Array.isArray(parsed)) return [];
+    if (!parsed || parsed.userId !== userId) return [];
+    return Array.isArray(parsed.events) ? parsed.events : [];
   } catch {
     return [];
   }
 }
 
-function writeBackup(events: SyncEvent[]) {
+function writeBackup(userId: string, events: SyncEvent[]) {
   try {
     if (events.length === 0) localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+    else localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, events } satisfies Backup));
   } catch {
     /* 저장 실패해도 학습은 계속되어야 합니다 */
+  }
+}
+
+async function postEvents(events: SyncEvent[]): Promise<void> {
+  const res = await fetch("/api/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events }),
+    keepalive: true,
+  });
+  if (!res.ok) throw new Error((await res.json()).error ?? "동기화에 실패했습니다.");
+}
+
+/**
+ * 로그아웃 직전에 부릅니다 — 남은 답안을 마저 보내고 백업을 비웁니다.
+ * 세션 쿠키가 아직 살아 있을 때 보내야 하므로 반드시 로그아웃 요청보다 먼저 실행합니다.
+ * 보내지 못하면 백업을 그대로 두어, 그 사람이 다시 로그인할 때 이어서 올라갑니다.
+ */
+export async function flushBeforeLogout(userId: string): Promise<boolean> {
+  const events = readBackup(userId);
+  if (events.length === 0) return true;
+  try {
+    await postEvents(events);
+    writeBackup(userId, []);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -34,7 +71,7 @@ function writeBackup(events: SyncEvent[]) {
  * 보내는 것은 "계산된 점수"가 아니라 "무엇을 눌렀는지"라서, 서버가 시트의
  * 현재 상태 위에 순서대로 적용합니다. 두 탭에서 동시에 풀어도 합쳐집니다.
  */
-export function useSyncQueue() {
+export function useSyncQueue(userId: string) {
   const queueRef = useRef<SyncEvent[]>([]);
   const sendingRef = useRef(false);
   const retryRef = useRef(0);
@@ -53,20 +90,14 @@ export function useSyncQueue() {
     sync();
 
     try {
-      const res = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ events: batch }),
-        keepalive: true,
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "동기화에 실패했습니다.");
+      await postEvents(batch);
       retryRef.current = 0;
       setError(null);
-      writeBackup(queueRef.current);
+      writeBackup(userId, queueRef.current);
     } catch (e) {
       // 실패하면 큐 앞쪽에 되돌려 놓고 다음 기회에 재시도합니다.
       queueRef.current = [...batch, ...queueRef.current];
-      writeBackup(queueRef.current);
+      writeBackup(userId, queueRef.current);
       retryRef.current += 1;
       if (retryRef.current >= MAX_RETRY) {
         setError(
@@ -80,27 +111,27 @@ export function useSyncQueue() {
       sendingRef.current = false;
       sync();
     }
-  }, [sync]);
+  }, [sync, userId]);
 
   const push = useCallback(
     (event: SyncEvent) => {
       queueRef.current.push(event);
-      writeBackup(queueRef.current);
+      writeBackup(userId, queueRef.current);
       sync();
       if (queueRef.current.length >= FLUSH_SIZE) void flush();
     },
-    [flush, sync],
+    [flush, sync, userId],
   );
 
   // 마운트 시: 지난번에 못 보낸 큐 복구
   useEffect(() => {
-    const backup = readBackup();
+    const backup = readBackup(userId);
     if (backup.length > 0) {
       queueRef.current = [...backup, ...queueRef.current];
       sync();
       void flush();
     }
-  }, [flush, sync]);
+  }, [flush, sync, userId]);
 
   // 60초마다 + 탭 이탈/종료 시 전송
   useEffect(() => {
@@ -114,7 +145,7 @@ export function useSyncQueue() {
       const blob = new Blob([JSON.stringify({ events: batch })], { type: "application/json" });
       if (navigator.sendBeacon("/api/sync", blob)) {
         queueRef.current = [];
-        writeBackup([]);
+        writeBackup(userId, []);
         sync();
       } else {
         void flush();
@@ -129,7 +160,7 @@ export function useSyncQueue() {
       window.removeEventListener("pagehide", onHidden);
       void flush();
     };
-  }, [flush, sync]);
+  }, [flush, sync, userId]);
 
   return { push, flush, pending, error };
 }

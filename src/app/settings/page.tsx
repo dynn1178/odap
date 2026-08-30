@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useSettings } from "@/components/SettingsProvider";
 import { btn, Card, cx, Section } from "@/components/ui";
 import { clearMeCache, useAuth } from "@/hooks/useAuth";
+import { flushBeforeLogout } from "@/hooks/useSyncQueue";
 import {
   FONT_LABELS,
   FONT_SIZE_LABELS,
@@ -74,6 +75,8 @@ export default function SettingsPage() {
               type="button"
               className={btn.ghost}
               onClick={async () => {
+                // 세션이 살아 있을 때 남은 답안을 먼저 보냅니다.
+                await flushBeforeLogout(me.userId);
                 await fetch("/api/auth/logout", { method: "POST" });
                 clearMeCache();
                 router.replace("/login");

@@ -80,6 +80,28 @@ export const KNOCK_GREETINGS = [
   "여기 문 한 번 더 두드립니다",
 ];
 
+/**
+ * 홈 화면 환영 문구 — 방문할 때마다 하나씩 뽑습니다.
+ * "두드리면 열린다"를 여러 각도로 비틀되, 훈계조로 들리지 않게 씁니다.
+ */
+export const HOME_MESSAGES = [
+  "공부할 과목을 고르세요. 꾸준히 두드리면 열릴거에요.",
+  "오늘도 한 번 두드려 볼까요. 과목부터 골라주세요.",
+  "안 열리는 문은 아직 덜 두드린 문이에요.",
+  "오늘 두드린 만큼 내일이 쉬워집니다.",
+  "틀린 문제는 도망 안 가요. 천천히 하나씩 두드려요.",
+  "몇 문제든 좋아요. 두드리다 보면 열립니다.",
+  "어제보다 한 번만 더 두드려 봐요.",
+  "오답은 적이 아니라 아직 안 열린 문일 뿐이에요.",
+  "과목을 고르면 문 앞까지 데려다 드릴게요.",
+  "짧게라도 매일. 그게 제일 세게 두드리는 방법이에요.",
+  "오늘의 문, 열러 가볼까요?",
+];
+
+export function pickHomeMessage(): string {
+  return HOME_MESSAGES[Math.floor(Math.random() * HOME_MESSAGES.length)];
+}
+
 export function pickPhrase(kind: AnswerKind, exclude?: string): string {
   const pool = PHRASES[kind];
   const candidates = pool.length > 1 && exclude ? pool.filter((p) => p !== exclude) : pool;

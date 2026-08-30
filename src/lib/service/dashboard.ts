@@ -94,6 +94,34 @@ function buildTrend(points: DailyPoint[], today: string): Trend {
   };
 }
 
+type UserAgg = {
+  solved: number;
+  correct: number;
+  seconds: number;
+  best: number;
+  dates: Set<string>;
+  mastered: number;
+  lastLevelDate: string;
+};
+
+/** 랭킹에 내려보낼 최대 인원. 지표마다 상위권이 달라서 넉넉히 보냅니다. */
+const RANKING_LIMIT = 200;
+
+/**
+ * 오늘(또는 어제)부터 거꾸로 이어진 연속 출석일.
+ * 오늘 아직 안 풀었어도 어제까지 이어졌으면 끊긴 것으로 보지 않습니다.
+ */
+export function currentStreak(dates: Set<string>, today: string): number {
+  let cursor = dates.has(today) ? today : shiftDate(today, -1);
+  if (!dates.has(cursor)) return 0;
+  let n = 0;
+  while (dates.has(cursor)) {
+    n += 1;
+    cursor = shiftDate(cursor, -1);
+  }
+  return n;
+}
+
 function totals(rows: { solved: number; correct: number; wrong: number; seconds: number }[]): Totals {
   const t = rows.reduce(
     (acc, r) => ({
@@ -128,35 +156,47 @@ export async function buildDashboard(
   const attendance = [...new Set(mine.filter((r) => r.solved > 0).map((r) => r.date))].sort();
   const daily = toDailyPoints(mine);
 
-  // ── 랭킹: 이 과목의 누적 풀이 수 기준, 동점이면 정답률 → 가입일 순 ──
-  const byUser = new Map<string, { solved: number; correct: number }>();
+  // ── 랭킹 ──
+  // 지표를 하나만 주면 "많이 푼 사람"만 계속 1등이라, 여러 지표를 한 번에 계산해
+  // 내려보내고 화면에서 골라 보게 합니다. 순위는 지표마다 달라지므로 화면에서 매깁니다.
+  const byUser = new Map<string, UserAgg>();
   for (const r of rows) {
-    const acc = byUser.get(r.userId) ?? { solved: 0, correct: 0 };
-    acc.solved += r.solved;
-    acc.correct += r.correct;
-    byUser.set(r.userId, acc);
+    const a =
+      byUser.get(r.userId) ??
+      ({ solved: 0, correct: 0, seconds: 0, best: 0, dates: new Set<string>(), mastered: 0, lastLevelDate: "" } as UserAgg);
+    a.solved += r.solved;
+    a.correct += r.correct;
+    a.seconds += r.seconds;
+    a.best = Math.max(a.best, r.solved);
+    if (r.solved > 0) a.dates.add(r.date);
+    // 정복 수는 누적이 아니라 "가장 최근 스냅샷" 값입니다.
+    if (r.levels && r.date >= a.lastLevelDate) {
+      a.mastered = r.levels.done;
+      a.lastLevelDate = r.date;
+    }
+    byUser.set(r.userId, a);
   }
 
   const createdAt = new Map(users.map((u) => [u.id, u.createdAt]));
   const nameOf = new Map(users.map((u) => [u.id, u.name]));
 
+  // 가입일 순으로 미리 정렬해 두면, 화면에서 지표별로 정렬할 때
+  // (JS sort 는 안정 정렬) 동점자가 가입 순으로 유지됩니다.
   const ranking: RankingRow[] = [...byUser.entries()]
     .filter(([, v]) => v.solved > 0)
+    .sort(([a], [b]) => (createdAt.get(a) ?? "").localeCompare(createdAt.get(b) ?? ""))
     .map(([id, v]) => ({
-      rank: 0,
       userId: id,
       name: nameOf.get(id) ?? "알 수 없음",
-      solved: v.solved,
-      accuracy: v.solved > 0 ? Math.round((v.correct / v.solved) * 1000) / 10 : 0,
       isMe: id === userId,
-    }))
-    .sort(
-      (a, b) =>
-        b.solved - a.solved ||
-        b.accuracy - a.accuracy ||
-        (createdAt.get(a.userId) ?? "").localeCompare(createdAt.get(b.userId) ?? ""),
-    )
-    .map((r, i) => ({ ...r, rank: i + 1 }));
+      solved: v.solved,
+      seconds: v.seconds,
+      accuracy: v.solved > 0 ? round1((v.correct / v.solved) * 100) : 0,
+      days: v.dates.size,
+      streak: currentStreak(v.dates, today),
+      mastered: v.mastered,
+      best: v.best,
+    }));
 
   return {
     date: today,
@@ -166,8 +206,7 @@ export async function buildDashboard(
     attendance,
     daily,
     trend: buildTrend(daily, today),
-    ranking: ranking.slice(0, 50),
-    myRank: ranking.find((r) => r.isMe)?.rank ?? null,
+    ranking: ranking.slice(0, RANKING_LIMIT),
     visitors: {
       today: new Set(rows.filter((r) => r.date === today && r.solved > 0).map((r) => r.userId))
         .size,

@@ -15,14 +15,42 @@ export type Totals = {
   accuracy: number;
 };
 
+/**
+ * 랭킹 한 사람 — 지표를 하나만 주면 "많이 푼 사람"만 1등이 되어서,
+ * 여러 지표를 한 번에 내려보내고 화면에서 골라 보게 합니다.
+ * 순위는 화면에서 매깁니다 (지표마다 순위가 다르니까요).
+ */
 export type RankingRow = {
-  rank: number;
   userId: string;
   name: string;
-  solved: number;
-  accuracy: number;
   isMe: boolean;
+  /** 누적 푼 문제 수 */
+  solved: number;
+  /** 누적 학습 시간(초) */
+  seconds: number;
+  /** 정답률 (%) */
+  accuracy: number;
+  /** 공부한 날 수 */
+  days: number;
+  /** 오늘/어제까지 이어진 연속 출석일 */
+  streak: number;
+  /** 마지막 스냅샷 기준 정복한 문제 수 */
+  mastered: number;
+  /** 하루 최다 풀이 */
+  best: number;
 };
+
+export type RankingMetric =
+  | "solved"
+  | "seconds"
+  | "accuracy"
+  | "days"
+  | "streak"
+  | "mastered"
+  | "best";
+
+/** 정답률 랭킹은 표본이 적으면 의미가 없어서 최소 풀이 수를 둡니다. */
+export const ACCURACY_MIN_SOLVED = 20;
 
 /** 날짜별 추이 한 점. levels 는 그날 마지막 동기화 시점의 난이도 스냅샷입니다. */
 export type DailyPoint = {
@@ -58,7 +86,6 @@ export type DashboardData = {
   daily: DailyPoint[];
   trend: Trend;
   ranking: RankingRow[];
-  myRank: number | null;
   visitors: { today: number; totalLearners: number };
   comments: Comment[];
 };

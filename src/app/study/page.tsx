@@ -86,6 +86,8 @@ function StudyInner() {
   const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
   const [direction, setDirection] = useState<Direction>("forward");
   const [typed, setTyped] = useState("");
+  /** [시트 다시 읽기] 를 누른 뒤 캐시가 비워질 때까지 — 아이콘을 돌리고 두 번 눌리지 않게 막습니다. */
+  const [reloading, setReloading] = useState(false);
 
   const progressRef = useRef<ProgressMap>({});
   /** 남은 심화 학습 문제. setState 업데이터 안에서 큐를 꺼내면
@@ -135,6 +137,17 @@ function StudyInner() {
   useEffect(() => {
     if (me) load();
   }, [me, load]);
+
+  /** 문제은행은 서버에서 15분 캐시라, 페이지 새로고침만으로는 고친 시트가 안 보입니다. */
+  const reloadSheet = async () => {
+    if (reloading) return;
+    setReloading(true);
+    await fetch(`/api/cache/purge?key=${encodeURIComponent(`questions:${subjectCode}`)}`).catch(
+      () => null,
+    );
+    setReloading(false);
+    load();
+  };
 
   const show = useCallback(
     (q: Question) => {
@@ -314,19 +327,15 @@ function StudyInner() {
             </span>
             <span className="flex shrink-0 items-center gap-2">
               {queue.pending > 0 && <span>저장 대기 {queue.pending}</span>}
-              {/* 문제은행은 15분 캐시라, 시트를 고쳐도 바로 안 보일 수 있습니다.
-                  페이지 새로고침으로는 서버 캐시가 안 지워져서 버튼을 따로 둡니다. */}
               <button
                 type="button"
-                className="text-muted underline hover:text-ink"
-                onClick={async () => {
-                  await fetch(
-                    `/api/cache/purge?key=questions:${encodeURIComponent(subjectCode)}`,
-                  ).catch(() => null);
-                  load();
-                }}
+                onClick={reloadSheet}
+                disabled={reloading}
+                aria-label="시트 다시 읽기"
+                title="시트 다시 읽기"
+                className="-m-1 shrink-0 rounded-md p-1 text-muted transition hover:bg-surface2 hover:text-ink disabled:opacity-50"
               >
-                시트 다시 읽기
+                <RefreshIcon spinning={reloading} />
               </button>
               {data.warnings.length > 0 && (
                 <button
@@ -454,6 +463,27 @@ function StudyInner() {
  * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
  * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
  */
+/** 시트를 다시 읽는 동안 도는 작은 새로고침 아이콘 (feather rotate-cw) */
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={spinning ? "animate-spin" : undefined}
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
 /**
  * 헤더 맨 위 진행바 두 개 — 왼쪽 진도율, 오른쪽 마스터율.
  * 분모가 둘 다 전체 문제 수라서 오른쪽 막대는 언제나 왼쪽 이하로 찹니다.

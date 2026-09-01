@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { KnockingDoor } from "@/components/KnockLogo";
 import { PortalSearch } from "@/components/PortalSearch";
@@ -498,56 +498,119 @@ function StatBars({ stats }: { stats: StudyStats }) {
         done={stats.seen}
         total={stats.total}
         fill="bg-brand"
-        title={`전체 ${stats.total}문제 중 ${stats.seen}문제를 한 번 이상 풀었습니다`}
+        hint={`한 번이라도 풀어 본 문제의 비율이에요. 전체 ${stats.total}문제 중 ${stats.seen}문제를 만났어요.`}
       />
       <MiniBar
         label="마스터율"
         done={stats.mastered}
         total={stats.total}
         fill="bg-dist-done"
-        title={`전체 ${stats.total}문제 중 ${stats.mastered}문제를 마스터했습니다 (score 0 · 정답 2회 이상)`}
+        hint={`확실히 아는 문제의 비율이에요. score 0 까지 내려놓고 2번 이상 맞히면 마스터예요. (${stats.mastered}문제)`}
       />
     </div>
   );
 }
 
+/** 손가락으로 눌러 띄운 설명이 저절로 사라지기까지 (마우스는 뗄 때까지 계속 보여 줍니다) */
+const HINT_MS = 2600;
+
+/**
+ * 막대 하나. 설명이 뜨는 방식이 PC 와 모바일에서 다릅니다.
+ *  · 마우스: 올리면 뜨고 치우면 사라집니다 (직접 그려서 브라우저 기본 툴팁의 지연을 없앴습니다)
+ *  · 터치:   누르면 뜨고 HINT_MS 뒤 저절로 사라집니다 — 손가락에는 "치운다"가 없어서입니다
+ */
 function MiniBar({
   label,
   done,
   total,
   fill,
-  title,
+  hint,
 }: {
   label: string;
   done: number;
   total: number;
   fill: string;
-  title: string;
+  hint: string;
 }) {
   const pct = total > 0 ? (done / total) * 100 : 0;
+  const hintId = useId();
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 터치는 pointerdown 뒤에 focus 까지 따라옵니다. 그때 자동 닫기를 지우지 않으려고 기억해 둡니다. */
+  const pointerRef = useRef<string>("mouse");
+
+  const clear = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+  };
+
+  /** auto 면 잠깐 보여 주고 저절로 닫습니다(터치). 아니면 뗄 때까지(마우스·키보드). */
+  const show = (auto: boolean) => {
+    clear();
+    setOpen(true);
+    if (auto) timerRef.current = setTimeout(() => setOpen(false), HINT_MS);
+  };
+
+  const hide = () => {
+    clear();
+    setOpen(false);
+  };
+
+  // 설명이 떠 있는 채로 화면을 떠나도 타이머가 남지 않게 합니다.
+  useEffect(() => clear, []);
 
   return (
-    <div title={title}>
-      <div className="flex items-baseline justify-between gap-1 text-[0.7rem] leading-none">
-        <span className="shrink-0 font-semibold text-muted">{label}</span>
-        <span className="tabular-nums text-muted">
-          <b className="text-ink">{done}</b>/{total}
-          <span className="ml-1 opacity-70">{pctLabel(done, total)}%</span>
-        </span>
-      </div>
-      <div
-        className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface2"
-        role="progressbar"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
+    <div className="relative">
+      <button
+        type="button"
+        className="block w-full cursor-default text-left"
+        aria-describedby={open ? hintId : undefined}
+        onPointerEnter={(e) => {
+          pointerRef.current = e.pointerType;
+          if (e.pointerType === "mouse") show(false);
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === "mouse") hide();
+        }}
+        onPointerDown={(e) => {
+          pointerRef.current = e.pointerType;
+          if (e.pointerType !== "mouse") show(true);
+        }}
+        // 키보드로 옮겨 온 경우에만. 터치는 이미 자동 닫기가 걸려 있습니다.
+        onFocus={() => pointerRef.current === "mouse" && show(false)}
+        onBlur={hide}
       >
+        <div className="flex items-baseline justify-between gap-1 text-[0.7rem] leading-none">
+          <span className="shrink-0 font-semibold text-muted">{label}</span>
+          <span className="tabular-nums text-muted">
+            <b className="text-ink">{done}</b>/{total}
+            <span className="ml-1 opacity-70">{pctLabel(done, total)}%</span>
+          </span>
+        </div>
         <div
-          className={`h-full rounded-full transition-[width] duration-500 ${fill}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+          className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface2"
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={done}
+        >
+          <div
+            className={`h-full rounded-full transition-[width] duration-500 ${fill}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </button>
+
+      {open && (
+        <p
+          id={hintId}
+          role="tooltip"
+          className="animate-fade-up absolute inset-x-0 top-full z-20 mt-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[0.68rem] leading-snug text-muted shadow-lg"
+        >
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

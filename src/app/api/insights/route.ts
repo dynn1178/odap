@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getSubjectProgress } from "@/lib/repo/progress";
 import { loadQuestionBank } from "@/lib/repo/questions";
 import { findSubject } from "@/lib/repo/subjects";
-import { emptyLevels, levelOf, weightOf } from "@/lib/domain/progress";
+import { emptyLevels, levelOf, MASTER_MIN_CORRECT, weightOf } from "@/lib/domain/progress";
 import { shuffle } from "@/lib/domain/select";
 import { isAnswerKind, isCorrectKind } from "@/lib/domain/types";
 import type { FocusBucket, InsightData, ReviewRow } from "@/lib/domain/view-types";
@@ -45,9 +45,9 @@ export async function GET(req: Request) {
       const correct = rec?.correct ?? 0;
       const wrong = rec?.wrong ?? 0;
       const total = correct + wrong;
-      if (total > 0) {
+      if (rec && total > 0) {
         attempted += 1;
-        counts[levelOf(rec?.score ?? 0)] += 1;
+        counts[levelOf(rec)] += 1;
       }
 
       all.push({
@@ -119,7 +119,10 @@ export async function GET(req: Request) {
         "almost",
         "마스터 직전",
         "한 번만 더 맞히면 마스터에 가까워져요",
-        (r) => r.score >= 1 && r.score <= 2,
+        // score 0 이어도 아직 한 번밖에 못 맞힌 문제는 마스터가 아니라 여기에 듭니다.
+        (r) =>
+          (r.score >= 1 && r.score <= 2) ||
+          (r.score === 0 && r.total > 0 && r.correct < MASTER_MIN_CORRECT),
         (a, b) => a.score - b.score || b.streak - a.streak,
       ),
       bucket(

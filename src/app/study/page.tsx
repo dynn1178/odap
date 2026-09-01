@@ -12,7 +12,14 @@ import { useQuestionTimer } from "@/hooks/useQuestionTimer";
 import { useSyncQueue } from "@/hooks/useSyncQueue";
 import { displayAnswer, gradeOpen } from "@/lib/domain/grade";
 import { pickGreeting, pickPhrase } from "@/lib/domain/phrases";
-import { applyAnswer, emptyRecord, requiredStreak, SCORE_DELTA } from "@/lib/domain/progress";
+import {
+  applyAnswer,
+  countStudyStats,
+  emptyRecord,
+  requiredStreak,
+  SCORE_DELTA,
+  type StudyStats,
+} from "@/lib/domain/progress";
 import { pickNextQuestion, shuffle } from "@/lib/domain/select";
 import type { AnswerKind, ProgressMap, Question, Record0 } from "@/lib/domain/types";
 
@@ -72,6 +79,8 @@ function StudyInner() {
   const [current, setCurrent] = useState<Current | null>(null);
   const [graded, setGraded] = useState<Graded | null>(null);
   const [session, setSession] = useState({ solved: 0, correct: 0 });
+  /** 과목 전체 기준 진도율/마스터율 — progressRef 는 ref 라 화면이 안 바뀌어서 따로 둡니다. */
+  const [stats, setStats] = useState<StudyStats>({ total: 0, seen: 0, mastered: 0 });
   const [showWarnings, setShowWarnings] = useState(false);
   /** 심화 학습 진행 표시 (없으면 평소대로 가중 추첨) */
   const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
@@ -105,6 +114,7 @@ function StudyInner() {
       })
       .then((body) => {
         progressRef.current = body.progress ?? {};
+        setStats(countStudyStats(body.questions.map((q) => q.id), progressRef.current));
         try {
           const saved = sessionStorage.getItem(RECENT_KEY(subjectCode));
           recentRef.current = saved ? (JSON.parse(saved) as string[]) : [];
@@ -240,6 +250,7 @@ function StudyInner() {
     });
 
     progressRef.current[current.q.id] = applyAnswer(progressRef.current[current.q.id], kind);
+    setStats(countStudyStats(data.questions.map((q) => q.id), progressRef.current));
 
     recentRef.current = [...recentRef.current, current.q.id].slice(-5);
     try {
@@ -292,6 +303,8 @@ function StudyInner() {
 
       {data && (
         <>
+          <StatBars stats={stats} />
+
           <div className="mb-2 flex items-center justify-between gap-2 text-[0.7rem] text-muted">
             <span className="min-w-0 truncate tabular-nums">
               이번 세션 {session.solved}문제
@@ -441,6 +454,81 @@ function StudyInner() {
  * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
  * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
  */
+/**
+ * 헤더 맨 위 진행바 두 개 — 왼쪽 진도율, 오른쪽 마스터율.
+ * 분모가 둘 다 전체 문제 수라서 오른쪽 막대는 언제나 왼쪽 이하로 찹니다.
+ */
+function StatBars({ stats }: { stats: StudyStats }) {
+  if (stats.total === 0) return null;
+
+  return (
+    <div className="mb-2.5 grid grid-cols-2 gap-3">
+      <MiniBar
+        label="진도율"
+        done={stats.seen}
+        total={stats.total}
+        fill="bg-brand"
+        title={`전체 ${stats.total}문제 중 ${stats.seen}문제를 한 번 이상 풀었습니다`}
+      />
+      <MiniBar
+        label="마스터율"
+        done={stats.mastered}
+        total={stats.total}
+        fill="bg-dist-done"
+        title={`전체 ${stats.total}문제 중 ${stats.mastered}문제를 마스터했습니다 (score 0 · 정답 2회 이상)`}
+      />
+    </div>
+  );
+}
+
+function MiniBar({
+  label,
+  done,
+  total,
+  fill,
+  title,
+}: {
+  label: string;
+  done: number;
+  total: number;
+  fill: string;
+  title: string;
+}) {
+  const pct = total > 0 ? (done / total) * 100 : 0;
+
+  return (
+    <div title={title}>
+      <div className="flex items-baseline justify-between gap-1 text-[0.7rem] leading-none">
+        <span className="shrink-0 font-semibold text-muted">{label}</span>
+        <span className="tabular-nums text-muted">
+          <b className="text-ink">{done}</b>/{total}
+          <span className="ml-1 opacity-70">{pctLabel(done, total)}%</span>
+        </span>
+      </div>
+      <div
+        className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface2"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+      >
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${fill}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** 반올림 때문에 다 못 푼 과목이 100%로, 한 문제 푼 과목이 0%로 보이지 않게 합니다. */
+function pctLabel(done: number, total: number): number {
+  if (total <= 0 || done <= 0) return 0;
+  if (done >= total) return 100;
+  return Math.min(99, Math.max(1, Math.round((done / total) * 100)));
+}
+
 /**
  * 지문은 헤더 바로 아래에 붙여 두고, 보기부터는 페이지와 함께 흐릅니다.
  * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.

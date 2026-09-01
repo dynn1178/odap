@@ -37,8 +37,8 @@ function clampScore(n: number): number {
  * 구간을 3개로 둔 이유: 4개로 나누면 인접한 두 색이 색각이상에서 구분되지 않습니다.
  */
 export const LEVEL_BANDS = [
-  { key: "done", label: "마스터", hint: "score 0" },
-  { key: "mid", label: "익숙", hint: "score 1–3" },
+  { key: "done", label: "마스터", hint: "score 0 · 정답 2회+" },
+  { key: "mid", label: "익숙", hint: "score 1–3 · 정답 1회" },
   { key: "hot", label: "노크 중", hint: `score 4–${MAX_SCORE}` },
 ] as const;
 
@@ -49,9 +49,22 @@ export function emptyLevels(): LevelCounts {
   return { done: 0, mid: 0, hot: 0 };
 }
 
-export function levelOf(score: number): LevelKey {
-  const s = clampScore(score);
-  if (s === 0) return "done";
+/**
+ * 마스터로 인정하는 최소 정답 횟수.
+ *
+ * 처음 만난 문제도 score 는 0 에서 시작하므로, score 만 보면
+ * 첫 만남에 "확실히 앎" 한 번 누른 문제가 곧바로 마스터가 됩니다.
+ * 한 번 더 맞혀서 확인된 문제만 마스터로 셉니다.
+ */
+export const MASTER_MIN_CORRECT = 2;
+
+/**
+ * 구간 판정의 유일한 기준입니다. score 만으로는 부족해서 기록 전체를 받습니다.
+ * score 0 인데 아직 한 번밖에 못 맞힌 문제는 "마스터 직전"이라 익숙으로 둡니다.
+ */
+export function levelOf(rec: Record0): LevelKey {
+  const s = clampScore(rec.score);
+  if (s === 0) return rec.correct >= MASTER_MIN_CORRECT ? "done" : "mid";
   if (s <= 3) return "mid";
   return "hot";
 }
@@ -61,13 +74,45 @@ export function countLevels(map: ProgressMap): LevelCounts {
   const counts = emptyLevels();
   for (const rec of Object.values(map)) {
     if (rec.correct + rec.wrong === 0) continue;
-    counts[levelOf(rec.score)] += 1;
+    counts[levelOf(rec)] += 1;
   }
   return counts;
 }
 
 export function totalLevels(c: LevelCounts): number {
   return c.done + c.mid + c.hot;
+}
+
+/**
+ * ─── 진도율 / 마스터율 ───
+ * 분모는 둘 다 "과목의 전체 문제 수"입니다. 분모를 다르게 잡으면
+ * "진도율 60%인데 마스터율 80%" 같은 읽을 수 없는 조합이 나옵니다.
+ * 같은 분모를 쓰므로 마스터율은 언제나 진도율 이하입니다.
+ */
+export type StudyStats = {
+  /** 과목의 전체 문제 수 */
+  total: number;
+  /** 한 번이라도 풀어 본 문제 수 (진도율의 분자) */
+  seen: number;
+  /** 마스터한 문제 수 (마스터율의 분자) */
+  mastered: number;
+};
+
+/** 대시보드의 "마스터" 구간과 같은 뜻입니다 — 정의가 갈라지지 않게 levelOf 하나만 봅니다. */
+export function isMastered(rec: Record0 | undefined): boolean {
+  if (!rec || rec.correct + rec.wrong === 0) return false;
+  return levelOf(rec) === "done";
+}
+
+export function countStudyStats(ids: string[], map: ProgressMap): StudyStats {
+  const stats: StudyStats = { total: ids.length, seen: 0, mastered: 0 };
+  for (const id of ids) {
+    const rec = map[id];
+    if (!rec || rec.correct + rec.wrong === 0) continue;
+    stats.seen += 1;
+    if (isMastered(rec)) stats.mastered += 1;
+  }
+  return stats;
 }
 
 /** 일별통계 셀에 "마스터,익숙,노크중" 한 칸으로 저장합니다. */

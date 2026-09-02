@@ -9,6 +9,21 @@ export const NEW_QUESTION_WEIGHT = 3;
 /** 최근 출제 제외 개수 상한 */
 export const RECENT_EXCLUDE = 5;
 
+/**
+ * 복습 슬롯 주기 — 이 배수 번째 문제는 "이미 본 문제" 중에서만 뽑습니다.
+ *
+ * 미출제 문제에 노출 보너스(NEW_QUESTION_WEIGHT)가 붙어 있어서, 문제가 500개쯤 되면
+ * 한참을 풀어도 뽑히는 건 거의 다 처음 보는 문제입니다. 마스터는 같은 문제를
+ * 두 번 맞혀야 되므로(MASTER_MIN_CORRECT) 500개를 다 훑기 전까지 마스터율이 0에
+ * 붙어 있게 됩니다. 그래서 네 문제 중 한 번은 복습 몫으로 떼어 둡니다.
+ */
+export const REVIEW_EVERY = 4;
+
+/** 마스터 직전(score 0 · 정답 1회) 문제의 복습 가중치 — 한 번만 더 맞히면 마스터입니다 */
+export const REVIEW_NEAR_MASTER_WEIGHT = 8;
+/** 이미 마스터한 문제의 복습 가중치 — 잊지 않았는지만 확인하므로 낮게 둡니다 */
+export const REVIEW_MASTERED_WEIGHT = 1;
+
 export function emptyRecord(): Record0 {
   return { score: 0, streak: 0, correct: 0, wrong: 0, history: "" };
 }
@@ -102,6 +117,19 @@ export type StudyStats = {
 export function isMastered(rec: Record0 | undefined): boolean {
   if (!rec || rec.correct + rec.wrong === 0) return false;
   return levelOf(rec) === "done";
+}
+
+/**
+ * 복습 슬롯에서 쓰는 가중치. 평소 가중치(weightOf)와 두 군데가 다릅니다.
+ *  - 미출제 문제는 0 — 복습 슬롯은 "이미 본 문제"만 다룹니다.
+ *  - 마스터 직전 문제가 가장 높습니다. 여기가 막혀서 마스터율이 안 오르던 자리입니다.
+ * score 가 남은 문제는 평소와 같은 비중이라, 복습이라고 해서 갑자기 순서가 뒤바뀌지 않습니다.
+ */
+export function reviewWeightOf(rec: Record0 | undefined): number {
+  if (!rec || rec.correct + rec.wrong === 0) return 0;
+  const s = clampScore(rec.score);
+  if (s > 0) return 1 + s;
+  return isMastered(rec) ? REVIEW_MASTERED_WEIGHT : REVIEW_NEAR_MASTER_WEIGHT;
 }
 
 export function countStudyStats(ids: string[], map: ProgressMap): StudyStats {

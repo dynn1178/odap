@@ -58,6 +58,8 @@ const DIRECTION_LABELS: Record<Direction, string> = {
 };
 
 const RECENT_KEY = (code: string) => `odap.recent.${code}`;
+/** 복습 슬롯 주기용 카운터 — 새로고침해도 주기가 처음부터 다시 세지 않게 저장합니다. */
+const TURN_KEY = (code: string) => `odap.turn.${code}`;
 const DIRECTION_KEY = (code: string) => `odap.direction.${code}`;
 
 export default function StudyPage() {
@@ -94,6 +96,8 @@ function StudyInner() {
    *  StrictMode 가 업데이터를 두 번 부를 때 문제가 두 개씩 사라집니다. */
   const drillRef = useRef<string[]>([]);
   const recentRef = useRef<string[]>([]);
+  /** 이 과목에서 지금까지 낸 문제 수 — pickNextQuestion 의 복습 슬롯 주기에만 씁니다. */
+  const turnRef = useRef(0);
   const lastPhraseRef = useRef<Partial<Record<AnswerKind, string>>>({});
 
   const timer = useQuestionTimer();
@@ -120,8 +124,10 @@ function StudyInner() {
         try {
           const saved = sessionStorage.getItem(RECENT_KEY(subjectCode));
           recentRef.current = saved ? (JSON.parse(saved) as string[]) : [];
+          turnRef.current = Number(sessionStorage.getItem(TURN_KEY(subjectCode))) || 0;
         } catch {
           recentRef.current = [];
+          turnRef.current = 0;
         }
         try {
           const d = localStorage.getItem(DIRECTION_KEY(subjectCode));
@@ -189,7 +195,12 @@ function StudyInner() {
       } else {
         // 묶음을 다 풀었으면 평소 출제로 돌아갑니다.
         setDrill(null);
-        picked = pickNextQuestion(questions, progressRef.current, recentRef.current);
+        picked = pickNextQuestion(
+          questions,
+          progressRef.current,
+          recentRef.current,
+          turnRef.current,
+        );
       }
 
       if (!picked) {
@@ -265,9 +276,11 @@ function StudyInner() {
     progressRef.current[current.q.id] = applyAnswer(progressRef.current[current.q.id], kind);
     setStats(countStudyStats(data.questions.map((q) => q.id), progressRef.current));
 
+    turnRef.current += 1;
     recentRef.current = [...recentRef.current, current.q.id].slice(-5);
     try {
       sessionStorage.setItem(RECENT_KEY(data.subject.code), JSON.stringify(recentRef.current));
+      sessionStorage.setItem(TURN_KEY(data.subject.code), String(turnRef.current));
     } catch {
       /* 저장 실패해도 학습은 계속됩니다 */
     }

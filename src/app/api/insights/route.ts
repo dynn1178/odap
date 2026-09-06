@@ -54,6 +54,7 @@ export async function GET(req: Request) {
         id: q.id,
         text: q.text,
         answer: q.answer,
+        answers: q.answers,
         // 시트에서는 정답이 늘 맨 앞이라 상세 모달에서도 순서를 섞습니다.
         options: shuffle(q.options),
         open: q.open,

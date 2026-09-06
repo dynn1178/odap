@@ -77,31 +77,48 @@ function withinOneEdit(a: string, b: string): boolean {
 export type OpenVerdict = "correct" | "typo" | "wrong";
 
 /**
- * 주관식은 시트의 "정답" 칸에 `,` 또는 `;` 로 여러 정답을 적을 수 있습니다.
- *   예) 마흔, 40  /  eraser; rubber  /  지우개,고무지우개
- * 어느 하나와 맞으면 정답으로 칩니다.
+ * 객관식 복수 정답 구분자.
  *
- * 객관식에서는 나누지 않습니다 — 정답 자체가 보기 문구라서
- * "서울, 대한민국" 같은 답이 두 개로 쪼개지면 안 됩니다.
+ * 쉼표는 "서울, 대한민국" 처럼 보기 문구 안에 그대로 들어가는 일이 흔해서
+ * 객관식에서는 나누지 않습니다. 세미콜론만 "정답이 여럿"이라는 뜻으로 씁니다.
+ */
+export const MULTI_ANSWER_SEP = ";";
+
+/**
+ * 시트의 "정답" 칸을 채점 기준 목록으로 나눕니다. 뜻은 유형에 따라 다릅니다.
+ *
+ *  · 주관식: `,` 또는 `;` 로 나열한 **인정 답안** — 어느 하나와 맞으면 정답
+ *      예) 마흔, 40  /  eraser; rubber  /  지우개,고무지우개
+ *  · 객관식: `;` 로 나열한 **정답 보기** — 나열한 것을 모두 골라야 정답
+ *      예) 산소;수소   (쉼표는 나누지 않으므로 "서울, 대한민국" 은 보기 하나입니다)
  */
 export function acceptedAnswers(answer: string, open: boolean): string[] {
   const text = answer.trim();
-  if (!open) return text ? [text] : [];
-  return text
-    .split(/[,;]/)
-    .map((a) => a.trim())
-    .filter(Boolean);
+  if (!text) return [];
+  const parts = open ? text.split(/[,;]/) : text.split(MULTI_ANSWER_SEP);
+  // 같은 답을 두 번 적어 두면 "정답 2개"로 잘못 세게 되므로 중복을 지웁니다.
+  return [...new Set(parts.map((a) => a.trim()).filter(Boolean))];
+}
+
+/**
+ * 고른 보기가 정답 집합과 정확히 같은지 (객관식 복수 정답).
+ * 하나라도 빠뜨리거나 더 고르면 오답입니다 — 그래야 "다 찍고 보기"가 안 됩니다.
+ */
+export function isSameAnswerSet(picked: readonly string[], answers: readonly string[]): boolean {
+  if (picked.length !== answers.length) return false;
+  const set = new Set(answers);
+  return picked.every((p) => set.has(p));
 }
 
 /**
  * "typo" 는 정답으로 칩니다 — 다만 화면에서 "오타는 넘어갈게요" 라고 알려 줍니다.
  * 오타 허용은 4글자 이상일 때만 적용합니다. 짧은 단어에서 한 글자는 다른 단어입니다.
  */
-export function gradeOpen(input: string, answer: string): OpenVerdict {
+export function gradeOpen(input: string, answers: readonly string[]): OpenVerdict {
   const typed = normalize(input);
   if (!typed) return "wrong";
 
-  const candidates = acceptedAnswers(answer, true);
+  const candidates = answers.map((a) => a.trim()).filter(Boolean);
   if (candidates.some((c) => normalize(c) === typed)) return "correct";
   if (candidates.some((c) => tight(c) === tight(input))) return "correct";
 
@@ -120,7 +137,14 @@ export function gradeOpen(input: string, answer: string): OpenVerdict {
   return "wrong";
 }
 
-/** 화면에 보여줄 정답 문구 (주관식이고 여러 개면 " / " 로 잇습니다) */
+/**
+ * 화면에 보여줄 정답 문구.
+ * 주관식은 "이 중 아무거나"라 " / ", 객관식 복수 정답은 "이걸 다"라서 " + " 로 잇습니다.
+ */
+export function joinAnswers(answers: readonly string[], open: boolean): string {
+  return answers.join(open ? " / " : " + ");
+}
+
 export function displayAnswer(answer: string, open: boolean): string {
-  return acceptedAnswers(answer, open).join(" / ");
+  return joinAnswers(acceptedAnswers(answer, open), open);
 }

@@ -15,7 +15,7 @@ import {
 } from "@/hooks/useHintCharges";
 import { useQuestionTimer } from "@/hooks/useQuestionTimer";
 import { useSyncQueue } from "@/hooks/useSyncQueue";
-import { displayAnswer, gradeOpen } from "@/lib/domain/grade";
+import { gradeOpen, isSameAnswerSet, joinAnswers } from "@/lib/domain/grade";
 import { pickGreeting, pickHintTeaser, pickPhrase } from "@/lib/domain/phrases";
 import {
   applyAnswer,
@@ -42,7 +42,8 @@ type StudyData = {
 type Current = {
   q: Question;
   text: string;
-  answer: string;
+  /** 정답. 둘 이상이면 모두 골라야 하는 다중 선택 문제입니다. */
+  answers: string[];
   options: string[];
   rec: Record0;
   /** 이 방향에서 보여 줄 힌트 (없으면 [힌트 보기] 버튼도 안 나옵니다) */
@@ -52,7 +53,8 @@ type Current = {
 };
 
 type Graded = {
-  picked: string;
+  /** 고른 보기들 (단일 선택·주관식이면 1개) */
+  picked: string[];
   isCorrect: boolean;
   /** 주관식에서 오타로 넘어간 경우 */
   typo: boolean;
@@ -99,6 +101,8 @@ function StudyInner() {
   const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
   const [direction, setDirection] = useState<Direction>("forward");
   const [typed, setTyped] = useState("");
+  /** 다중 선택 문제에서 아직 제출하지 않고 체크해 둔 보기들 */
+  const [selected, setSelected] = useState<string[]>([]);
   /** 이번 문제에서 힌트를 펼쳤는지 — 난이도 버튼의 score 보너스 판단에 그대로 씁니다. */
   const [hintShown, setHintShown] = useState(false);
   /** [시트 다시 읽기] 를 누른 뒤 캐시가 비워질 때까지 — 아이콘을 돌리고 두 번 눌리지 않게 막습니다. */
@@ -178,11 +182,12 @@ function StudyInner() {
 
       setGraded(null);
       setTyped("");
+      setSelected([]);
       setHintShown(false);
       setCurrent({
         q,
         text: facing.text,
-        answer: facing.answer,
+        answers: facing.answers,
         options: shuffle(facing.options),
         rec: progressRef.current[q.id] ?? emptyRecord(),
         // 힌트는 정방향 지문을 기준으로 쓰여 있습니다. 뒤집으면 지금 묻고 있는
@@ -254,12 +259,36 @@ function StudyInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  /**
+   * 정답이 하나면 누르는 즉시 채점합니다 (지금까지와 같습니다).
+   * 여러 개면 체크만 해 두고, [제출] 을 눌러야 채점합니다 — 하나 누를 때마다
+   * 채점하면 나머지를 고를 기회가 없습니다.
+   */
   const onPick = (option: string) => {
     if (!current || graded) return;
+
+    if (current.answers.length > 1) {
+      setSelected((s) => (s.includes(option) ? s.filter((v) => v !== option) : [...s, option]));
+      return;
+    }
+
     const seconds = timer.stop();
     setGraded({
-      picked: option,
-      isCorrect: option === current.answer,
+      picked: [option],
+      isCorrect: option === current.answers[0],
+      typo: false,
+      seconds,
+      greeting: pickGreeting(),
+    });
+  };
+
+  /** 다중 선택 제출 — 하나라도 빠뜨리거나 더 고르면 오답입니다 */
+  const onSubmitPicks = () => {
+    if (!current || graded || selected.length === 0) return;
+    const seconds = timer.stop();
+    setGraded({
+      picked: selected,
+      isCorrect: isSameAnswerSet(selected, current.answers),
       typo: false,
       seconds,
       greeting: pickGreeting(),
@@ -271,9 +300,9 @@ function StudyInner() {
     e.preventDefault();
     if (!current || graded || !typed.trim()) return;
     const seconds = timer.stop();
-    const verdict = gradeOpen(typed, current.answer);
+    const verdict = gradeOpen(typed, current.answers);
     setGraded({
-      picked: typed.trim(),
+      picked: [typed.trim()],
       isCorrect: verdict !== "wrong",
       typo: verdict === "typo",
       seconds,
@@ -459,12 +488,14 @@ function StudyInner() {
             <div>
               <QuestionBody
                 text={current.text}
-                answer={current.answer}
+                answers={current.answers}
                 options={current.options}
                 open={current.q.open}
                 typed={typed}
                 onTyped={setTyped}
                 onSubmitTyped={onSubmitTyped}
+                selected={selected}
+                onSubmitPicks={onSubmitPicks}
                 graded={graded}
                 onPick={onPick}
               />
@@ -490,7 +521,7 @@ function StudyInner() {
                   isCorrect={graded.isCorrect}
                   typo={graded.typo}
                   greeting={graded.greeting}
-                  answer={current.answer}
+                  answers={current.answers}
                   open={current.q.open}
                   explanation={current.q.explanation}
                   rec={current.rec}
@@ -683,26 +714,33 @@ function pctLabel(done: number, total: number): number {
  */
 function QuestionBody({
   text,
-  answer,
+  answers,
   options,
   open,
   typed,
   onTyped,
   onSubmitTyped,
+  selected,
+  onSubmitPicks,
   graded,
   onPick,
 }: {
   text: string;
-  answer: string;
+  answers: string[];
   options: string[];
   open: boolean;
   typed: string;
   onTyped: (v: string) => void;
   onSubmitTyped: (e: React.FormEvent) => void;
+  selected: string[];
+  onSubmitPicks: () => void;
   graded: Graded | null;
   onPick: (option: string) => void;
 }) {
   const revealed = Boolean(graded);
+  /** 정답이 둘 이상이면 체크해서 모으고 [제출] 로 한 번에 채점합니다 */
+  const multi = answers.length > 1;
+  const answerSet = new Set(answers);
 
   return (
     <>
@@ -715,7 +753,7 @@ function QuestionBody({
       {open ? (
         <form onSubmit={onSubmitTyped} className="mt-3 space-y-2">
           <input
-            value={revealed ? graded!.picked : typed}
+            value={revealed ? (graded!.picked[0] ?? "") : typed}
             onChange={(e) => onTyped(e.target.value)}
             disabled={revealed}
             autoFocus
@@ -742,40 +780,87 @@ function QuestionBody({
                 ? "오타는 넘어갈게요 — 정답으로 처리했어요."
                 : graded!.isCorrect
                   ? "정답이에요."
-                  : `정답: ${displayAnswer(answer, true)}`}
+                  : `정답: ${joinAnswers(answers, true)}`}
             </p>
           )}
         </form>
       ) : (
-        <ul className="mt-3 space-y-2">
-          {options.map((option) => {
-            const isAnswer = option === answer;
-            const isPicked = graded?.picked === option;
+        <>
+          {multi && !revealed && (
+            <p className="mt-3 rounded-lg bg-surface2 px-3 py-2 text-xs text-muted">
+              정답이 <b className="text-ink">{answers.length}개</b>예요. 모두 고른 뒤 [제출] 을
+              눌러 주세요.
+            </p>
+          )}
 
-            return (
-              <li key={option}>
-                <button
-                  type="button"
-                  disabled={revealed}
-                  onClick={() => onPick(option)}
-                  className={cx(
-                    "flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[0.95rem] leading-relaxed transition",
-                    "min-h-[44px] disabled:cursor-default",
-                    !revealed && "border-line bg-surface hover:border-brand/60 hover:bg-surface2",
-                    revealed && isAnswer && "border-correct bg-correct/10 text-correct",
-                    revealed && isPicked && !isAnswer && "border-wrong bg-wrong/10 text-wrong",
-                    revealed && !isAnswer && !isPicked && "border-line opacity-55",
-                  )}
-                >
-                  <span aria-hidden="true" className="mt-0.5 w-4 shrink-0 text-center font-bold">
-                    {revealed ? (isAnswer ? "○" : isPicked ? "✕" : "") : ""}
-                  </span>
-                  <span className="whitespace-pre-wrap break-words">{option}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+          <ul className="mt-3 space-y-2">
+            {options.map((option) => {
+              const isAnswer = answerSet.has(option);
+              const isPicked = revealed
+                ? graded!.picked.includes(option)
+                : selected.includes(option);
+              // 채점 뒤에는 못 고른 정답을 따로 짚어 줍니다 — 다중 선택에서는
+              // "무엇을 빠뜨렸는지"가 "무엇을 틀렸는지"만큼 중요합니다.
+              const missed = revealed && multi && isAnswer && !isPicked;
+
+              return (
+                <li key={option}>
+                  <button
+                    type="button"
+                    disabled={revealed}
+                    onClick={() => onPick(option)}
+                    aria-pressed={multi && !revealed ? isPicked : undefined}
+                    className={cx(
+                      "flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[0.95rem] leading-relaxed transition",
+                      "min-h-[44px] disabled:cursor-default",
+                      !revealed &&
+                        !isPicked &&
+                        "border-line bg-surface hover:border-brand/60 hover:bg-surface2",
+                      !revealed && isPicked && "border-brand bg-brand/10 font-semibold text-brand",
+                      revealed && isAnswer && "border-correct bg-correct/10 text-correct",
+                      revealed && isPicked && !isAnswer && "border-wrong bg-wrong/10 text-wrong",
+                      revealed && !isAnswer && !isPicked && "border-line opacity-55",
+                    )}
+                  >
+                    <span aria-hidden="true" className="mt-0.5 w-4 shrink-0 text-center font-bold">
+                      {revealed
+                        ? isAnswer
+                          ? "○"
+                          : isPicked
+                            ? "✕"
+                            : ""
+                        : multi
+                          ? isPicked
+                            ? "☑"
+                            : "☐"
+                          : ""}
+                    </span>
+                    <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{option}</span>
+                    {missed && (
+                      <span className="mt-0.5 shrink-0 text-[0.68rem] font-semibold opacity-70">
+                        못 고름
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          {multi && !revealed && (
+            <button
+              type="button"
+              onClick={onSubmitPicks}
+              disabled={selected.length === 0}
+              className={cx(btn.primary, "mt-2.5 w-full")}
+            >
+              제출
+              <span className="text-xs font-medium opacity-80 tabular-nums">
+                {selected.length}/{answers.length}
+              </span>
+            </button>
+          )}
+        </>
       )}
     </>
   );
@@ -873,7 +958,7 @@ function ResponsePanel({
   isCorrect,
   typo,
   greeting,
-  answer,
+  answers,
   open,
   explanation,
   rec,
@@ -884,7 +969,7 @@ function ResponsePanel({
   isCorrect: boolean;
   typo: boolean;
   greeting: string;
-  answer: string;
+  answers: string[];
   open: boolean;
   explanation: string;
   rec: Record0;
@@ -913,7 +998,7 @@ function ResponsePanel({
           </p>
           {!isCorrect && (
             <p className="mt-0.5 break-words text-sm text-muted">
-              정답은 <b className="text-ink">{displayAnswer(answer, open)}</b> 였어요.
+              정답은 <b className="text-ink">{joinAnswers(answers, open)}</b> 였어요.
             </p>
           )}
         </div>

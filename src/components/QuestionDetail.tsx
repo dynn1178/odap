@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { HistoryLegend, HistoryTimeline } from "@/components/HistoryTimeline";
 import { btn, cx } from "@/components/ui";
-import { displayAnswer } from "@/lib/domain/grade";
+import { joinAnswers } from "@/lib/domain/grade";
 import { formatScore } from "@/lib/domain/progress";
 import type { ReviewRow } from "@/lib/domain/view-types";
 
@@ -32,6 +32,8 @@ export function QuestionDetail({
       document.body.style.overflow = prev;
     };
   }, [onClose]);
+
+  const answerSet = new Set(row.answers);
 
   return (
     <div
@@ -71,12 +73,18 @@ export function QuestionDetail({
         {row.open ? (
           <div className="rounded-xl border border-correct bg-correct/10 px-3.5 py-2.5 text-sm font-semibold text-correct">
             <span className="mr-2 text-xs font-normal opacity-70">주관식 정답</span>
-            {displayAnswer(row.answer, row.open)}
+            {joinAnswers(row.answers, row.open)}
           </div>
         ) : (
         <ul className="space-y-2">
+          {row.answers.length > 1 && (
+            <li className="rounded-lg bg-surface2 px-3 py-2 text-xs text-muted">
+              정답이 <b className="text-ink">{row.answers.length}개</b>인 문제예요 — 모두 골라야
+              정답입니다.
+            </li>
+          )}
           {row.options.map((o) => {
-            const isAnswer = o === row.answer;
+            const isAnswer = answerSet.has(o);
             return (
               <li
                 key={o}

@@ -129,7 +129,10 @@ export type InsightData = {
 export type ReviewRow = {
   id: string;
   text: string;
+  /** 시트 원본 문자열 */
   answer: string;
+  /** answer 를 나눈 정답 목록 — 객관식에서 둘 이상이면 다중 선택 문제입니다 */
+  answers: string[];
   /** 주관식이면 비어 있습니다 */
   options: string[];
   open: boolean;

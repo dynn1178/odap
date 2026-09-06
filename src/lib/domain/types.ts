@@ -14,7 +14,11 @@ export type Subject = {
 /** 한 문제를 화면에 내는 한 가지 방식 (양방향 과목은 방향이 둘) */
 export type Facing = {
   text: string;
-  answer: string;
+  /**
+   * 채점 기준. 객관식이면 **골라야 할 보기 전부**(둘 이상이면 다중 선택 문제),
+   * 주관식이면 인정하는 답안 목록입니다.
+   */
+  answers: string[];
   /** 정답 + 오답 (주관식이면 비어 있습니다) */
   options: string[];
 };
@@ -22,7 +26,10 @@ export type Facing = {
 export type Question = {
   id: string;
   text: string;
+  /** 시트 "정답" 칸 원본 — 복수 정답은 ";" 로 이어져 있습니다 */
   answer: string;
+  /** answer 를 나눈 채점 기준 (Facing 과 같은 뜻) */
+  answers: string[];
   /** 정답 + 오답을 모두 담은 원본 보기 목록 (중복 제거·빈칸 제거 완료, 셔플 전) */
   options: string[];
   explanation: string;

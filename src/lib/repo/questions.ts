@@ -42,11 +42,14 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
       const text = t.get(row, QUESTION_COLS.text);
       const answer = t.get(row, QUESTION_COLS.answer);
       const open = t.opt(row, QUESTION_COLS.open).toUpperCase() === "Y";
+      // 객관식은 ";" 로 나눈 것이 모두 정답입니다 (하나면 예전 그대로 단일 선택).
+      const answers = acceptedAnswers(answer, open);
       if (!text) {
         warnings.push(`${rowNo}행(${id}): 문제 지문이 비어 있어 제외했습니다.`);
         return;
       }
-      if (!answer) {
+      // ";" 만 잔뜩 적힌 칸도 여기서 걸립니다 (나누고 나면 남는 게 없습니다).
+      if (answers.length === 0) {
         warnings.push(`${rowNo}행(${id}): 정답이 비어 있어 제외했습니다.`);
         return;
       }
@@ -56,7 +59,7 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
       if (!open) {
         // 보기: 빈칸 제거 + 중복 제거 (정답과 같은 오답도 제거)
         const raw = OPTION_COLS.map((c) => t.opt(row, c)).filter(Boolean);
-        options = [answer];
+        options = [...answers];
         let dupes = 0;
         for (const o of raw) {
           if (options.includes(o)) {
@@ -68,8 +71,13 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
         if (dupes > 0) {
           warnings.push(`${rowNo}행(${id}): 중복된 보기 ${dupes}개를 제거했습니다.`);
         }
-        if (options.length < 2) {
-          warnings.push(`${rowNo}행(${id}): 보기가 2개 미만이라 제외했습니다.`);
+        // 오답 보기가 하나도 없으면 "전부 고르기"가 정답이 되어 문제가 성립하지 않습니다.
+        if (options.length <= answers.length) {
+          warnings.push(
+            answers.length > 1
+              ? `${rowNo}행(${id}): 정답이 ${answers.length}개인데 오답 보기가 없어 제외했습니다.`
+              : `${rowNo}행(${id}): 보기가 2개 미만이라 제외했습니다.`,
+          );
           return;
         }
       }
@@ -79,6 +87,7 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
         id,
         text,
         answer,
+        answers,
         options,
         open,
         explanation: t.opt(row, QUESTION_COLS.explanation),
@@ -119,11 +128,13 @@ function addReverse(questions: Question[]): void {
   }
 
   for (const q of questions) {
-    // 정답이 여러 개면 첫 번째를 문제로 씁니다.
-    const [primary] = acceptedAnswers(q.answer, q.open);
+    // 객관식 복수 정답은 뒤집을 수 없습니다 — 지문이 여러 개가 되어 버립니다.
+    if (!q.open && q.answers.length > 1) continue;
+    // 주관식에서 인정 답안이 여러 개면 첫 번째를 문제로 씁니다.
+    const [primary] = q.answers;
     if (!primary) continue;
 
-    const reverse: Facing = { text: primary, answer: q.text, options: [] };
+    const reverse: Facing = { text: primary, answers: [q.text], options: [] };
 
     if (!q.open) {
       const same = isHangul(q.text) ? pool.ko : pool.en;

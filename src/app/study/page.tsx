@@ -935,21 +935,37 @@ function HintBox({
   );
 }
 
-/** 힌트 본문의 **강조** 를 빨갛게 칠합니다 (시트에서 마크다운처럼 적을 수 있게) */
+/**
+ * 힌트 본문에서 별표로 감싼 대목을 빨갛게 칠합니다 — 시트에 `*강조*` 처럼 적으면 됩니다.
+ * 별표를 두 개씩 적어 둔 힌트(`**강조**`)도 그대로 알아듣습니다.
+ *
+ * 성경 앱이나 워드에서 본문을 복사해 붙이면 보통 별표(U+002A) 대신 전각 ＊ 이나 ∗ 가
+ * 섞여 들어옵니다. 화면에서는 똑같아 보이는데 강조만 안 먹어서 원인을 찾기가 아주 어렵기
+ * 때문에, 별표처럼 보이는 글자는 모두 별표로 취급합니다.
+ */
+const STARS = "*＊∗⁎✱٭";
+const EMPHASIS = new RegExp(`([${STARS}]{1,2}[^${STARS}]+[${STARS}]{1,2})`, "g");
+const STAR_EDGES = new RegExp(`^[${STARS}]+|[${STARS}]+$`, "g");
+
+function isStar(ch: string | undefined): boolean {
+  return !!ch && STARS.includes(ch);
+}
+
 function HintMarkup({ text }: { text: string }) {
   // 캡처 그룹으로 split 하면 구분자가 결과 배열에 그대로 남습니다.
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const parts = text.split(EMPHASIS);
   return (
     <>
-      {parts.map((part, i) =>
-        part.length > 4 && part.startsWith("**") && part.endsWith("**") ? (
+      {parts.map((part, i) => {
+        const inner = part.replace(STAR_EDGES, "");
+        return isStar(part[0]) && isStar(part[part.length - 1]) && inner ? (
           <b key={i} className="font-bold text-wrong">
-            {part.slice(2, -2)}
+            {inner}
           </b>
         ) : (
           <span key={i}>{part}</span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }

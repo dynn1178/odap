@@ -10,6 +10,16 @@ export const NEW_QUESTION_WEIGHT = 3;
 export const RECENT_EXCLUDE = 5;
 
 /**
+ * 힌트를 보고 답한 문제에 얹는 score.
+ *
+ * "맞히긴 했지만 혼자 힘은 아니었다"를 한 단계(1점)로 세면 너무 무겁고, 0 으로 두면
+ * 힌트를 아무리 봐도 출제 빈도가 그대로입니다. 그래서 반 단계만 얹습니다 —
+ * 노출 가중치(1 + score)가 조금 올라가 같은 문제를 조금 더 자주 만나게 됩니다.
+ * score 가 0.5 단위를 갖는 유일한 이유이기도 합니다 (clampScore 참고).
+ */
+export const HINT_SCORE_BONUS = 0.5;
+
+/**
  * 복습 슬롯 주기 — 이 배수 번째 문제는 "이미 본 문제" 중에서만 뽑습니다.
  *
  * 미출제 문제에 노출 보너스(NEW_QUESTION_WEIGHT)가 붙어 있어서, 문제가 500개쯤 되면
@@ -39,9 +49,19 @@ export function weightOf(rec: Record0 | undefined): number {
   return 1 + clampScore(rec.score);
 }
 
+/**
+ * score 는 0 ~ MAX_SCORE 사이의 **0.5 단위** 값입니다.
+ * 정수만 쓰면 힌트 보너스(0.5)가 통째로 잘려 나가므로 반 칸까지 허용합니다.
+ * 그 아래 자리는 반올림해 버려서, 여러 번 더해도 0.1 씩 오차가 쌓이지 않습니다.
+ */
 function clampScore(n: number): number {
   if (!Number.isFinite(n)) return 0;
-  return Math.min(MAX_SCORE, Math.max(0, Math.trunc(n)));
+  return Math.min(MAX_SCORE, Math.max(0, Math.round(n * 2) / 2));
+}
+
+/** score 를 화면·시트에 쓸 때 "3" / "3.5" 로 짧게 보여 줍니다 */
+export function formatScore(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 /**
@@ -53,7 +73,7 @@ function clampScore(n: number): number {
  */
 export const LEVEL_BANDS = [
   { key: "done", label: "마스터", hint: "score 0 · 정답 2회+" },
-  { key: "mid", label: "익숙", hint: "score 1–3 · 정답 1회" },
+  { key: "mid", label: "익숙", hint: "score 0.5–3 · 정답 1회" },
   { key: "hot", label: "노크 중", hint: `score 4–${MAX_SCORE}` },
 ] as const;
 
@@ -128,8 +148,13 @@ export function isMastered(rec: Record0 | undefined): boolean {
 export function reviewWeightOf(rec: Record0 | undefined): number {
   if (!rec || rec.correct + rec.wrong === 0) return 0;
   const s = clampScore(rec.score);
-  if (s > 0) return 1 + s;
-  return isMastered(rec) ? REVIEW_MASTERED_WEIGHT : REVIEW_NEAR_MASTER_WEIGHT;
+  if (s >= 1) return 1 + s;
+  // score 가 0 이거나 힌트 보너스(0.5)만 남은 문제.
+  // 여기서 isMastered 를 쓰면 힌트를 본 순간 마스터 판정이 풀려서 가중치가 1 → 8 로
+  // 튑니다. 마스터 여부는 정답 횟수로 직접 보고, 힌트 보너스는 그 위에 얹기만 합니다.
+  const base =
+    rec.correct >= MASTER_MIN_CORRECT ? REVIEW_MASTERED_WEIGHT : REVIEW_NEAR_MASTER_WEIGHT;
+  return base + s;
 }
 
 export function countStudyStats(ids: string[], map: ProgressMap): StudyStats {
@@ -168,7 +193,11 @@ export const SCORE_DELTA: Record<AnswerKind, number> = {
 /**
  * 기획안 2-3 갱신 규칙. 순수 함수이므로 클라이언트 미리보기와 서버 반영이 항상 같은 결과를 냅니다.
  */
-export function applyAnswer(prev: Record0 | undefined, kind: AnswerKind): Record0 {
+export function applyAnswer(
+  prev: Record0 | undefined,
+  kind: AnswerKind,
+  hinted = false,
+): Record0 {
   const base = prev ? { ...prev } : emptyRecord();
   base.score = clampScore(base.score);
 
@@ -176,7 +205,8 @@ export function applyAnswer(prev: Record0 | undefined, kind: AnswerKind): Record
     base.streak += 1;
     base.correct += 1;
     if (base.score > 0 && base.streak >= requiredStreak(base.score)) {
-      base.score -= 1;
+      // 힌트 보너스만 남은 0.5 도 여기서 정리됩니다 — clampScore 가 0 아래로 못 내려가게 잡습니다.
+      base.score = clampScore(base.score - 1);
       base.streak = 0;
     }
     if (base.score === 0) base.streak = 0;
@@ -189,6 +219,10 @@ export function applyAnswer(prev: Record0 | undefined, kind: AnswerKind): Record
     base.score = clampScore(base.score + SCORE_DELTA[kind]);
     base.streak = 0;
   }
+
+  // 힌트를 봤다면 어느 버튼을 눌렀든 반 칸을 얹습니다 — "확실히 앎"으로 내려간
+  // score 도 0.5 만큼 되돌아와서, 혼자 힘으로 다시 맞힐 때까지 조금 더 자주 나옵니다.
+  if (hinted) base.score = clampScore(base.score + HINT_SCORE_BONUS);
 
   base.history = (base.history + kind).slice(-HISTORY_LEN);
   return base;
@@ -205,7 +239,9 @@ export function serializeProgress(map: ProgressMap): string {
   const parts: string[] = [];
   for (const [id, r] of Object.entries(map)) {
     if (!id || id.includes(":") || id.includes("|")) continue;
-    parts.push(`${id}:${r.score},${r.streak},${r.correct},${r.wrong},${r.history}`);
+    parts.push(
+      `${id}:${formatScore(clampScore(r.score))},${r.streak},${r.correct},${r.wrong},${r.history}`,
+    );
   }
   return parts.join("|");
 }
@@ -223,7 +259,7 @@ export function parseProgress(raw: string | undefined | null): ProgressMap {
       for (const [id, v] of Object.entries(obj)) {
         if (Array.isArray(v)) {
           map[id] = {
-            score: num(v[0]),
+            score: clampScore(half(v[0])),
             streak: num(v[1]),
             correct: num(v[2]),
             wrong: num(v[3]),
@@ -244,7 +280,7 @@ export function parseProgress(raw: string | undefined | null): ProgressMap {
     const id = part.slice(0, sep);
     const f = part.slice(sep + 1).split(",");
     map[id] = {
-      score: clampScore(num(f[0])),
+      score: clampScore(half(f[0])),
       streak: num(f[1]),
       correct: num(f[2]),
       wrong: num(f[3]),
@@ -257,6 +293,12 @@ export function parseProgress(raw: string | undefined | null): ProgressMap {
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0;
+}
+
+/** score 전용 — 소수점을 살려 읽습니다 (num 은 잘라내므로 0.5 가 사라집니다) */
+function half(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 /** 셀 50,000자 한도 대비 경고용 */

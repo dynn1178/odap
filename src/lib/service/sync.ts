@@ -57,7 +57,7 @@ function sanitize(raw: unknown): SyncEvent[] {
     let date = at ? kstDate(at) : today;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Math.abs(dayDiff(date, today)) > 2) date = today;
 
-    out.push({ subjectCode, questionId, kind, seconds, at: date });
+    out.push({ subjectCode, questionId, kind, seconds, at: date, hinted: ev.hinted === true });
   }
   return out;
 }
@@ -106,7 +106,7 @@ export async function applyBatch(userId: string, rawEvents: unknown): Promise<Sy
 
   for (const ev of events) {
     const map = state.get(ev.subjectCode)!;
-    map[ev.questionId] = applyAnswer(map[ev.questionId], ev.kind);
+    map[ev.questionId] = applyAnswer(map[ev.questionId], ev.kind, ev.hinted === true);
 
     const key = dailyKey(ev.at, ev.subjectCode);
     const d = daily.get(key) ?? { solved: 0, correct: 0, wrong: 0, seconds: 0 };

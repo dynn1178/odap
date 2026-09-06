@@ -39,6 +39,8 @@ export const QUESTION_COLS = {
   active: "사용여부",
   /** Y 면 보기 대신 직접 입력받아 채점합니다 */
   open: "주관식",
+  /** 정답을 알려주지 않고 힌트만 주는 칸. ** 사이의 글자는 빨갛게 강조됩니다. */
+  hint: "힌트",
 } as const;
 
 /** 오답 보기 컬럼: 보기2 ~ 보기7 (빈칸 허용) */
@@ -141,4 +143,5 @@ export const QUESTION_SHEET_HEADERS: string[] = [
   QUESTION_COLS.explanation,
   QUESTION_COLS.active,
   QUESTION_COLS.open,
+  QUESTION_COLS.hint,
 ];

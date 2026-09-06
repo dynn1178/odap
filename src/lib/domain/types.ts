@@ -28,6 +28,8 @@ export type Question = {
   explanation: string;
   /** 보기 대신 직접 입력받아 채점 */
   open: boolean;
+  /** 시트 "힌트" 열. 비어 있으면 [힌트 보기] 버튼이 아예 나오지 않습니다. */
+  hint: string;
   /**
    * 뒤집은 문제 (양방향 과목만).
    * 학습 기록은 원래 문제와 같은 문제ID 로 합쳐서 남깁니다 —
@@ -74,6 +76,8 @@ export type SyncEvent = {
   seconds: number;
   /** 클라이언트 기준 응답 시각 (ISO). 서버는 날짜 집계에만 참고합니다. */
   at: string;
+  /** 이 문제를 풀면서 힌트를 봤는지 — 서버가 score 에 HINT_SCORE_BONUS 를 얹습니다. */
+  hinted?: boolean;
 };
 
 export type SubjectProgress = {

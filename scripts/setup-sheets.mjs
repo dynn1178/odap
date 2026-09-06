@@ -39,6 +39,7 @@ const QUESTION_HEADERS = [
   "해설",
   "사용여부",
   "주관식",
+  "힌트",
 ];
 
 const NEWLINE = String.fromCharCode(10);

@@ -120,8 +120,9 @@ export async function GET(req: Request) {
         "마스터 직전",
         "한 번만 더 맞히면 마스터에 가까워져요",
         // score 0 이어도 아직 한 번밖에 못 맞힌 문제는 마스터가 아니라 여기에 듭니다.
+        // 힌트 보너스(0.5)만 남은 문제도 여기에 들도록 아래 경계는 0 초과로 둡니다.
         (r) =>
-          (r.score >= 1 && r.score <= 2) ||
+          (r.score > 0 && r.score <= 2) ||
           (r.score === 0 && r.total > 0 && r.correct < MASTER_MIN_CORRECT),
         (a, b) => a.score - b.score || b.streak - a.streak,
       ),

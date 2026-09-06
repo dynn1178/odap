@@ -82,6 +82,8 @@ export async function loadQuestionBank(subject: Subject): Promise<QuestionBank> 
         options,
         open,
         explanation: t.opt(row, QUESTION_COLS.explanation),
+        // 아직 "힌트" 열이 없는 시트도 그대로 동작합니다 (opt 는 없는 열이면 빈 문자열).
+        hint: t.opt(row, QUESTION_COLS.hint),
       });
     });
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { HistoryLegend, HistoryTimeline } from "@/components/HistoryTimeline";
 import { btn, cx } from "@/components/ui";
 import { displayAnswer } from "@/lib/domain/grade";
+import { formatScore } from "@/lib/domain/progress";
 import type { ReviewRow } from "@/lib/domain/view-types";
 
 /**
@@ -112,7 +113,7 @@ export function QuestionDetail({
 
         <div className="mt-4">
           <p className="mb-1.5 text-xs font-bold text-muted">
-            응답 경과 · 현재 점수 {row.score} (노출 {row.weight}배)
+            응답 경과 · 현재 점수 {formatScore(row.score)} (노출 {formatScore(row.weight)}배)
           </p>
           <HistoryTimeline history={row.history} size="md" />
           <div className="mt-2">

@@ -8,14 +8,21 @@ import { KnockingDoor } from "@/components/KnockLogo";
 import { PortalSearch } from "@/components/PortalSearch";
 import { btn, cx, Empty, ErrorBox, Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  formatCountdown,
+  MAX_HINT_CHARGES,
+  useHintCharges,
+} from "@/hooks/useHintCharges";
 import { useQuestionTimer } from "@/hooks/useQuestionTimer";
 import { useSyncQueue } from "@/hooks/useSyncQueue";
 import { displayAnswer, gradeOpen } from "@/lib/domain/grade";
-import { pickGreeting, pickPhrase } from "@/lib/domain/phrases";
+import { pickGreeting, pickHintTeaser, pickPhrase } from "@/lib/domain/phrases";
 import {
   applyAnswer,
   countStudyStats,
   emptyRecord,
+  formatScore,
+  HINT_SCORE_BONUS,
   requiredStreak,
   SCORE_DELTA,
   type StudyStats,
@@ -38,6 +45,10 @@ type Current = {
   answer: string;
   options: string[];
   rec: Record0;
+  /** 이 방향에서 보여 줄 힌트 (없으면 [힌트 보기] 버튼도 안 나옵니다) */
+  hint: string;
+  /** 버튼 아래 작은 만류 문구 — 문제마다 하나씩 고정합니다 */
+  teaser: string;
 };
 
 type Graded = {
@@ -88,6 +99,8 @@ function StudyInner() {
   const [drill, setDrill] = useState<{ label: string; done: number; total: number } | null>(null);
   const [direction, setDirection] = useState<Direction>("forward");
   const [typed, setTyped] = useState("");
+  /** 이번 문제에서 힌트를 펼쳤는지 — 난이도 버튼의 score 보너스 판단에 그대로 씁니다. */
+  const [hintShown, setHintShown] = useState(false);
   /** [시트 다시 읽기] 를 누른 뒤 캐시가 비워질 때까지 — 아이콘을 돌리고 두 번 눌리지 않게 막습니다. */
   const [reloading, setReloading] = useState(false);
 
@@ -101,6 +114,7 @@ function StudyInner() {
   const lastPhraseRef = useRef<Partial<Record<AnswerKind, string>>>({});
 
   const timer = useQuestionTimer();
+  const hints = useHintCharges();
   const queue = useSyncQueue(me?.userId ?? "");
 
   useEffect(() => {
@@ -164,12 +178,17 @@ function StudyInner() {
 
       setGraded(null);
       setTyped("");
+      setHintShown(false);
       setCurrent({
         q,
         text: facing.text,
         answer: facing.answer,
         options: shuffle(facing.options),
         rec: progressRef.current[q.id] ?? emptyRecord(),
+        // 힌트는 정방향 지문을 기준으로 쓰여 있습니다. 뒤집으면 지금 묻고 있는
+        // 것을 설명하는 꼴이라 도움이 안 되므로, 역방향에서는 아예 내지 않습니다.
+        hint: useReverse ? "" : q.hint,
+        teaser: pickHintTeaser(),
       });
       timer.reset();
     },
@@ -271,9 +290,14 @@ function StudyInner() {
       kind,
       seconds: graded.seconds,
       at: new Date().toISOString(),
+      hinted: hintShown,
     });
 
-    progressRef.current[current.q.id] = applyAnswer(progressRef.current[current.q.id], kind);
+    progressRef.current[current.q.id] = applyAnswer(
+      progressRef.current[current.q.id],
+      kind,
+      hintShown,
+    );
     setStats(countStudyStats(data.questions.map((q) => q.id), progressRef.current));
 
     turnRef.current += 1;
@@ -445,6 +469,22 @@ function StudyInner() {
                 onPick={onPick}
               />
 
+              {current.hint && (
+                <HintBox
+                  hint={current.hint}
+                  teaser={current.teaser}
+                  shown={hintShown}
+                  charges={hints.charges}
+                  remainingMs={hints.remainingMs}
+                  graded={Boolean(graded)}
+                  onReveal={() => {
+                    if (hints.charges <= 0) return;
+                    hints.spend();
+                    setHintShown(true);
+                  }}
+                />
+              )}
+
               {graded && (
                 <ResponsePanel
                   isCorrect={graded.isCorrect}
@@ -454,6 +494,7 @@ function StudyInner() {
                   open={current.q.open}
                   explanation={current.q.explanation}
                   rec={current.rec}
+                  hinted={hintShown}
                   responses={responses}
                   onRespond={onRespond}
                 />
@@ -740,6 +781,94 @@ function QuestionBody({
   );
 }
 
+/**
+ * 힌트 (기능 요구 1·2).
+ *
+ * 정답을 바로 알려주는 장치가 아니라 "막혔을 때 한 번 두드려 보는 문"이라,
+ *  · 버튼 아래에 매번 다른 만류 문구를 깔아 두고
+ *  · 3분에 한 개씩만 차오르는 충전(useHintCharges)을 쓰게 하고
+ *  · 한 번 펼치면 그 문제는 score 에 +HINT_SCORE_BONUS 가 붙는다고 미리 알려 줍니다.
+ * 채점이 끝난 뒤에는 새로 펼칠 수 없고, 이미 펼친 힌트만 해설과 함께 남습니다.
+ */
+function HintBox({
+  hint,
+  teaser,
+  shown,
+  charges,
+  remainingMs,
+  graded,
+  onReveal,
+}: {
+  hint: string;
+  teaser: string;
+  shown: boolean;
+  charges: number;
+  remainingMs: number;
+  graded: boolean;
+  onReveal: () => void;
+}) {
+  if (shown) {
+    return (
+      <div className="animate-fade-up mt-3 rounded-xl border border-lucky/40 bg-lucky/5 p-3">
+        <p className="mb-1 text-xs font-bold text-lucky">힌트</p>
+        <p className="whitespace-pre-wrap break-words text-[0.9rem] leading-relaxed">
+          <HintMarkup text={hint} />
+        </p>
+      </div>
+    );
+  }
+
+  // 채점이 끝난 뒤에는 힌트가 아니라 해설을 볼 자리입니다.
+  if (graded) return null;
+
+  const ready = charges > 0;
+  const countdown = formatCountdown(remainingMs);
+
+  return (
+    <div className="mt-4 text-center">
+      <button
+        type="button"
+        onClick={onReveal}
+        disabled={!ready}
+        className={cx(
+          "inline-flex min-h-[38px] items-center gap-1.5 rounded-full border px-4 text-[0.8rem] font-semibold transition",
+          ready
+            ? "border-lucky/50 bg-lucky/10 text-lucky hover:bg-lucky/15 active:scale-[0.98]"
+            : "cursor-not-allowed border-line bg-surface2 text-muted",
+        )}
+      >
+        <span aria-hidden="true">💡</span>
+        {ready ? "힌트 보기" : `힌트 충전 중 ${countdown}`}
+        <span className="text-[0.68rem] font-medium opacity-70 tabular-nums">
+          {charges}/{MAX_HINT_CHARGES}
+        </span>
+      </button>
+      <p className="mx-auto mt-1.5 max-w-[26rem] text-[0.68rem] leading-snug text-muted">
+        {ready ? teaser : "3분마다 한 개씩 충전돼요. 그동안 한 번 더 생각해 볼까요?"}
+      </p>
+    </div>
+  );
+}
+
+/** 힌트 본문의 **강조** 를 빨갛게 칠합니다 (시트에서 마크다운처럼 적을 수 있게) */
+function HintMarkup({ text }: { text: string }) {
+  // 캡처 그룹으로 split 하면 구분자가 결과 배열에 그대로 남습니다.
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.length > 4 && part.startsWith("**") && part.endsWith("**") ? (
+          <b key={i} className="font-bold text-wrong">
+            {part.slice(2, -2)}
+          </b>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function ResponsePanel({
   isCorrect,
   typo,
@@ -748,6 +877,7 @@ function ResponsePanel({
   open,
   explanation,
   rec,
+  hinted,
   responses,
   onRespond,
 }: {
@@ -758,6 +888,7 @@ function ResponsePanel({
   open: boolean;
   explanation: string;
   rec: Record0;
+  hinted: boolean;
   responses: { kind: AnswerKind; phrase: string }[];
   onRespond: (kind: AnswerKind) => void;
 }) {
@@ -800,6 +931,12 @@ function ResponsePanel({
         <p className="mb-1.5 text-xs text-muted">
           {isCorrect ? "얼마나 확실했나요?" : "얼마나 어려웠나요?"}
         </p>
+        {hinted && (
+          <p className="mb-1.5 text-[0.7rem] text-lucky">
+            힌트를 봤으니 어느 쪽을 골라도 score 에 +{formatScore(HINT_SCORE_BONUS)} 가 함께
+            붙어요 — 혼자 풀 때까지 조금 더 자주 나옵니다.
+          </p>
+        )}
         <div
           className={cx(
             "grid gap-1.5",
@@ -819,7 +956,7 @@ function ResponsePanel({
             >
               <span>{phrase}</span>
               <span className="text-[0.62rem] font-medium opacity-60">
-                {badgeText(kind, rec)}
+                {badgeText(kind, rec, hinted)}
               </span>
             </button>
           ))}
@@ -844,10 +981,15 @@ function kindStyle(kind: AnswerKind): string {
   }
 }
 
-/** 가중치 변화를 작게 알려 줍니다 (기획안 2-2) */
-function badgeText(kind: AnswerKind, rec: Record0): string {
-  if (kind !== "S") return `+${SCORE_DELTA[kind]}`;
-  if (rec.score === 0) return "0 유지";
+/**
+ * 가중치 변화를 작게 알려 줍니다 (기획안 2-2).
+ * 힌트를 봤으면 어느 버튼이든 +HINT_SCORE_BONUS 가 더 붙습니다. "확실히 앎"은 숫자가
+ * 아니라 "−1 이 언제 적용되는지"를 알려 주는 자리라, 보너스 안내는 버튼 위 한 줄에 맡깁니다.
+ */
+function badgeText(kind: AnswerKind, rec: Record0, hinted: boolean): string {
+  const bonus = hinted ? HINT_SCORE_BONUS : 0;
+  if (kind !== "S") return `+${formatScore(SCORE_DELTA[kind] + bonus)}`;
+  if (rec.score === 0) return hinted ? `+${formatScore(bonus)}` : "0 유지";
   const need = requiredStreak(rec.score);
   const n = rec.streak + 1;
   return n >= need ? "−1 적용" : `−1 · 연속 ${n}/${need}`;

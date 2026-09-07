@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { btn, cx } from "@/components/ui";
+import { pickShareLabel } from "@/lib/domain/phrases";
 import { drawStatsCard, shareStatsImage, type StatsCardInput } from "@/lib/util/shareImage";
 
 /**
@@ -11,15 +12,17 @@ import { drawStatsCard, shareStatsImage, type StatsCardInput } from "@/lib/util/
 export function ShareStatsButton({
   stats,
   variant = "ghost",
-  label = "공유하기",
+  label,
   fullWidth = false,
 }: {
   stats: StatsCardInput;
   /** primary = 브랜드색으로 눈에 띄게 (축하 팝업 등 핵심 동작으로 둘 때) */
   variant?: "primary" | "ghost" | "subtle";
+  /** 생략하면 문구 풀에서 하나를 뽑아 씁니다 (기획 요청 — "이 순간 공유하기"처럼 특정 순간을 지칭하지 않고 담백하게) */
   label?: string;
   fullWidth?: boolean;
 }) {
+  const [fallbackLabel] = useState(pickShareLabel);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -52,7 +55,7 @@ export function ShareStatsButton({
         className={cx(variantClass, !fullWidth && "!min-h-[38px] !px-3 text-xs", fullWidth && "w-full")}
       >
         <ShareIcon />
-        {busy ? "만드는 중…" : label}
+        {busy ? "만드는 중…" : (label ?? fallbackLabel)}
       </button>
       {notice && <span className="text-[0.7rem] text-muted">{notice}</span>}
     </span>

@@ -136,7 +136,6 @@ export function CelebrationModal({
           <ShareStatsButton
             stats={{ subjectName, progressPct, masteryPct, seen, total, mastered }}
             variant="primary"
-            label="이 순간 공유하기"
             fullWidth
           />
           <button type="button" className={cx(btn.ghost, "w-full")} onClick={onClose}>

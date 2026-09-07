@@ -275,3 +275,16 @@ export const NOTE_PROMPTS = [
 export function pickNotePrompt(): string {
   return NOTE_PROMPTS[Math.floor(Math.random() * NOTE_PROMPTS.length)];
 }
+
+/** 공유 버튼 문구 — 매번 하나씩 뽑습니다. 과장 없이 담백하게 둡니다. */
+export const SHARE_LABELS = [
+  "지인들에게 공유하기",
+  "친구에게 공유하기",
+  "내 학습상황 공유하기",
+  "학습 현황 공유하기",
+  "가족에게 공유하기",
+];
+
+export function pickShareLabel(): string {
+  return SHARE_LABELS[Math.floor(Math.random() * SHARE_LABELS.length)];
+}

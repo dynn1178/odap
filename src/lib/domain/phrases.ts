@@ -1,4 +1,5 @@
 import type { AnswerKind } from "./types";
+import type { Milestone } from "./progress";
 
 /**
  * 기획안 2-2 — 대화형 응답 버튼 문구 풀.
@@ -103,7 +104,7 @@ export const PHRASES: Record<AnswerKind, string[]> = {
     "비슷한 거랑 섞였어",
     "복습이 필요해",
     "감은 잡히는데",
-    "절반의 패배",
+    "절반은 이미 내 거야",
     "다음엔 잡는다",
     "머리에 덜 붙었네",
     "좀 더 두드려야겠다",
@@ -121,7 +122,7 @@ export const PHRASES: Record<AnswerKind, string[]> = {
     "본 적도 없어",
     "완전 처음이야",
     "손도 못 대겠다",
-    "이건 항복",
+    "다음엔 뚫어본다",
     "자주 보여줘",
     "아예 모르는 영역",
     "머릿속이 하얘",
@@ -130,7 +131,7 @@ export const PHRASES: Record<AnswerKind, string[]> = {
     "지금은 도저히",
     "완전 낯설다",
     "감도 안 잡혀",
-    "포기가 빠르겠다",
+    "그래도 한 번 더 두드려본다",
     "다시 처음부터",
   ],
 };
@@ -212,4 +213,65 @@ export const HINT_TEASERS = [
 
 export function pickHintTeaser(): string {
   return HINT_TEASERS[Math.floor(Math.random() * HINT_TEASERS.length)];
+}
+
+/**
+ * ─── 진도율/마스터율 마일스톤 축하 문구 ───
+ * 10% 단위로 새로 넘길 때마다 하나씩 뽑아 보여줍니다 (기획 요청 1·2).
+ * 10~90%는 그때그때 숫자를 채워 넣는 템플릿을 쓰고, 100%(완주)만 따로 문구를 둡니다 —
+ * 열 단계 전부를 손으로 써 내려가면 비슷한 말만 늘어나고, 완주는 톤 자체가 달라서입니다.
+ */
+export const PROGRESS_MILESTONE_TEMPLATES: ((m: number) => string)[] = [
+  (m) => `벌써 공부 진도가 ${m}%를 넘었어요. 조금만 더 화이팅!`,
+  (m) => `진도율 ${m}% 돌파! 이 페이스면 금방이에요.`,
+  (m) => `문이 ${m}%만큼 열렸어요. 계속 두드려봐요.`,
+  (m) => `전체 문제 중 ${m}%를 만나봤어요.`,
+];
+
+export const PROGRESS_COMPLETE_MESSAGES = [
+  "전체 문제를 다 만나봤어요! 진도율 100% 달성!!",
+  "진도율 100% — 이 과목 문제를 전부 풀어봤어요.",
+  "끝까지 왔어요! 이제부터는 복습으로 더 단단하게.",
+  "완주 축하해요. 진도율 100%!",
+];
+
+export const MASTERY_MILESTONE_TEMPLATES: ((m: number) => string)[] = [
+  (m) => `완전히 내 것으로 만든 문제가 벌써 ${m}%를 넘었어요.`,
+  (m) => `마스터율 ${m}% 돌파! 확실히 아는 문제가 늘고 있어요.`,
+  (m) => `마스터율 ${m}% — 아는 문제가 착실히 쌓이고 있어요.`,
+  (m) => `${m}%만큼 완전히 내 것으로 만들었어요.`,
+];
+
+export const MASTERY_COMPLETE_MESSAGES = [
+  "100% 마스터 달성!!",
+  "이 과목 전체를 완전히 마스터했어요. 축하해요!",
+  "마스터율 100% — 더는 흔들리지 않아요.",
+];
+
+function pickTemplate(templates: ((m: number) => string)[], m: number): string {
+  return templates[Math.floor(Math.random() * templates.length)](m);
+}
+
+function pickFrom(pool: string[]): string {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export function pickProgressMilestoneMessage(m: Milestone): string {
+  return m === 100 ? pickFrom(PROGRESS_COMPLETE_MESSAGES) : pickTemplate(PROGRESS_MILESTONE_TEMPLATES, m);
+}
+
+export function pickMasteryMilestoneMessage(m: Milestone): string {
+  return m === 100 ? pickFrom(MASTERY_COMPLETE_MESSAGES) : pickTemplate(MASTERY_MILESTONE_TEMPLATES, m);
+}
+
+/** 축하 팝업 하단 한줄 소감 입력창 위에 붙는 말 — 매번 하나씩 뽑습니다. */
+export const NOTE_PROMPTS = [
+  "지금 공부 소감을 한줄로 남겨볼까요?",
+  "이 순간의 마음을 한마디로 남겨보세요.",
+  "한줄 남기면 대시보드에 이 시점 기록으로 남아요.",
+  "지금 느낀 걸 짧게 적어볼까요?",
+];
+
+export function pickNotePrompt(): string {
+  return NOTE_PROMPTS[Math.floor(Math.random() * NOTE_PROMPTS.length)];
 }

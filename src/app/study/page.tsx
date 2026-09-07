@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { CelebrationModal, type Celebration } from "@/components/CelebrationModal";
 import { KnockingDoor } from "@/components/KnockLogo";
 import { PortalSearch } from "@/components/PortalSearch";
+import { ShareStatsButton } from "@/components/ShareStatsButton";
+import { StudyIntroModal } from "@/components/StudyIntroModal";
 import { btn, cx, Empty, ErrorBox, Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -16,10 +19,17 @@ import {
 import { useQuestionTimer } from "@/hooks/useQuestionTimer";
 import { useSyncQueue } from "@/hooks/useSyncQueue";
 import { gradeOpen, isSameAnswerSet, joinAnswers } from "@/lib/domain/grade";
-import { pickGreeting, pickHintTeaser, pickPhrase } from "@/lib/domain/phrases";
+import {
+  pickGreeting,
+  pickHintTeaser,
+  pickMasteryMilestoneMessage,
+  pickPhrase,
+  pickProgressMilestoneMessage,
+} from "@/lib/domain/phrases";
 import {
   applyAnswer,
   countStudyStats,
+  crossedMilestone,
   emptyRecord,
   formatScore,
   HINT_SCORE_BONUS,
@@ -29,6 +39,7 @@ import {
 } from "@/lib/domain/progress";
 import { pickNextQuestion, shuffle } from "@/lib/domain/select";
 import type { AnswerKind, ProgressMap, Question, Record0 } from "@/lib/domain/types";
+import type { Comment, RankingRow } from "@/lib/domain/view-types";
 
 type StudyData = {
   subject: { code: string; name: string; group: string };
@@ -74,6 +85,15 @@ const RECENT_KEY = (code: string) => `odap.recent.${code}`;
 /** 복습 슬롯 주기용 카운터 — 새로고침해도 주기가 처음부터 다시 세지 않게 저장합니다. */
 const TURN_KEY = (code: string) => `odap.turn.${code}`;
 const DIRECTION_KEY = (code: string) => `odap.direction.${code}`;
+/** 진도율/마스터율 마일스톤 축하는 과목당·사람당 한 번만 — 영구 저장(localStorage). */
+const CELEBRATED_KEY = (code: string, type: Celebration["type"], milestone: number) =>
+  `odap.celebrated.${code}.${type}.${milestone}`;
+/** 과목 진입 인트로(랭킹·한줄남기기)는 세션당 한 번만 — 새 탭/새로고침이면 다시 보입니다. */
+const INTRO_KEY = (code: string) => `odap.introShown.${code}`;
+
+function toPct(done: number, total: number): number {
+  return total > 0 ? (done / total) * 100 : 0;
+}
 
 export default function StudyPage() {
   return (
@@ -107,6 +127,10 @@ function StudyInner() {
   const [hintShown, setHintShown] = useState(false);
   /** [시트 다시 읽기] 를 누른 뒤 캐시가 비워질 때까지 — 아이콘을 돌리고 두 번 눌리지 않게 막습니다. */
   const [reloading, setReloading] = useState(false);
+  /** 진도율/마스터율 마일스톤 축하 대기열 — 한 번에 여러 개를 넘기면 순서대로 보여줍니다. */
+  const [celebrationQueue, setCelebrationQueue] = useState<Celebration[]>([]);
+  /** 과목 진입 인트로(랭킹 top3 + 최근 한줄) — null 이면 아직 안 띄웠거나 이미 닫은 상태 */
+  const [intro, setIntro] = useState<{ ranking: RankingRow[]; comments: Comment[] } | null>(null);
 
   const progressRef = useRef<ProgressMap>({});
   /** 남은 심화 학습 문제. setState 업데이터 안에서 큐를 꺼내면
@@ -156,6 +180,24 @@ function StudyInner() {
         setData(body);
       })
       .catch((e: Error) => setError(e.message));
+
+    // 과목 진입 인트로 — 세션당 한 번만 띄웁니다. 실패해도 문제풀이 자체는 그대로 진행됩니다.
+    try {
+      if (!sessionStorage.getItem(INTRO_KEY(subjectCode))) {
+        sessionStorage.setItem(INTRO_KEY(subjectCode), "1");
+        fetch(`/api/dashboard?subject=${encodeURIComponent(subjectCode)}`, { cache: "no-store" })
+          .then(async (res) => {
+            if (!res.ok) return;
+            const body = (await res.json()) as { ranking?: RankingRow[]; comments?: Comment[] };
+            setIntro({ ranking: body.ranking ?? [], comments: body.comments ?? [] });
+          })
+          .catch(() => {
+            /* 인트로는 곁다리 기능입니다 */
+          });
+      }
+    } catch {
+      /* sessionStorage 를 못 쓰는 환경이면 인트로 없이 진행됩니다 */
+    }
   }, [subjectCode]);
 
   useEffect(() => {
@@ -310,6 +352,33 @@ function StudyInner() {
     });
   };
 
+  /**
+   * 진도율/마스터율이 25% 단위를 새로 넘기면 축하 팝업을 큐에 넣습니다 (기획 요청 1·2).
+   * 한 번 축하한 구간은 localStorage 에 남겨 다시는 뜨지 않게 합니다.
+   */
+  const celebrate = (
+    type: Celebration["type"],
+    prevDone: number,
+    nextDone: number,
+    total: number,
+    subjCode: string,
+  ) => {
+    const milestone = crossedMilestone(prevDone, nextDone, total);
+    if (!milestone) return;
+    try {
+      const key = CELEBRATED_KEY(subjCode, type, milestone);
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      /* localStorage 를 못 쓰면 다시 뜰 수 있지만 학습 자체에는 지장 없습니다 */
+    }
+    const message =
+      type === "progress"
+        ? pickProgressMilestoneMessage(milestone)
+        : pickMasteryMilestoneMessage(milestone);
+    setCelebrationQueue((q) => [...q, { type, milestone, message }]);
+  };
+
   const onRespond = (kind: AnswerKind) => {
     if (!current || !graded || !data) return;
 
@@ -327,7 +396,10 @@ function StudyInner() {
       kind,
       hintShown,
     );
-    setStats(countStudyStats(data.questions.map((q) => q.id), progressRef.current));
+    const nextStats = countStudyStats(data.questions.map((q) => q.id), progressRef.current);
+    celebrate("progress", stats.seen, nextStats.seen, nextStats.total, data.subject.code);
+    celebrate("mastery", stats.mastered, nextStats.mastered, nextStats.total, data.subject.code);
+    setStats(nextStats);
 
     turnRef.current += 1;
     recentRef.current = [...recentRef.current, current.q.id].slice(-5);
@@ -383,6 +455,21 @@ function StudyInner() {
       {data && (
         <>
           <StatBars stats={stats} />
+
+          {stats.total > 0 && (
+            <div className="mb-2 flex justify-end">
+              <ShareStatsButton
+                stats={{
+                  subjectName: data.subject.name,
+                  progressPct: toPct(stats.seen, stats.total),
+                  masteryPct: toPct(stats.mastered, stats.total),
+                  seen: stats.seen,
+                  total: stats.total,
+                  mastered: stats.mastered,
+                }}
+              />
+            </div>
+          )}
 
           <div className="mb-2 flex items-center justify-between gap-2 text-[0.7rem] text-muted">
             <span className="min-w-0 truncate tabular-nums">
@@ -504,6 +591,7 @@ function StudyInner() {
                 <HintBox
                   hint={current.hint}
                   teaser={current.teaser}
+                  queryText={current.text}
                   shown={hintShown}
                   charges={hints.charges}
                   remainingMs={hints.remainingMs}
@@ -530,14 +618,32 @@ function StudyInner() {
                   onRespond={onRespond}
                 />
               )}
-
-              {/* 난이도 버튼과 충분히 떨어뜨려 둡니다 — 붙어 있으면 잘못 누르기 쉽습니다. */}
-              <div className="mt-12 border-t border-line/60 pt-4">
-                <PortalSearch text={current.text} />
-              </div>
             </div>
           )}
         </>
+      )}
+
+      {intro && (
+        <StudyIntroModal
+          subjectCode={subjectCode}
+          ranking={intro.ranking}
+          comments={intro.comments}
+          onClose={() => setIntro(null)}
+        />
+      )}
+
+      {data && celebrationQueue[0] && (
+        <CelebrationModal
+          celebration={celebrationQueue[0]}
+          subjectCode={data.subject.code}
+          subjectName={data.subject.name}
+          progressPct={toPct(stats.seen, stats.total)}
+          masteryPct={toPct(stats.mastered, stats.total)}
+          seen={stats.seen}
+          total={stats.total}
+          mastered={stats.mastered}
+          onClose={() => setCelebrationQueue((q) => q.slice(1))}
+        />
       )}
     </AppShell>
   );
@@ -878,6 +984,7 @@ function QuestionBody({
 function HintBox({
   hint,
   teaser,
+  queryText,
   shown,
   charges,
   remainingMs,
@@ -886,6 +993,8 @@ function HintBox({
 }: {
   hint: string;
   teaser: string;
+  /** 힌트 영역 안에 함께 두는 포털 검색용 원문 지문 */
+  queryText: string;
   shown: boolean;
   charges: number;
   remainingMs: number;
@@ -899,12 +1008,21 @@ function HintBox({
         <p className="whitespace-pre-wrap break-words text-[0.9rem] leading-relaxed">
           <HintMarkup text={hint} />
         </p>
+        <div className="mt-2.5 border-t border-lucky/20 pt-2.5">
+          <PortalSearch text={queryText} />
+        </div>
       </div>
     );
   }
 
-  // 채점이 끝난 뒤에는 힌트가 아니라 해설을 볼 자리입니다.
-  if (graded) return null;
+  // 채점이 끝났는데 힌트를 안 봤다면, 힌트 대신 검색만 남겨 둡니다.
+  if (graded) {
+    return (
+      <div className="mt-3">
+        <PortalSearch text={queryText} />
+      </div>
+    );
+  }
 
   const ready = charges > 0;
   const countdown = formatCountdown(remainingMs);
@@ -929,8 +1047,11 @@ function HintBox({
         </span>
       </button>
       <p className="mx-auto mt-1.5 max-w-[26rem] text-[0.68rem] leading-snug text-muted">
-        {ready ? teaser : "3분마다 한 개씩 충전돼요. 그동안 한 번 더 생각해 볼까요?"}
+        {ready ? teaser : "1분마다 한 개씩 충전돼요. 그동안 한 번 더 생각해 볼까요?"}
       </p>
+      <div className="mt-3">
+        <PortalSearch text={queryText} />
+      </div>
     </div>
   );
 }

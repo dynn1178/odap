@@ -307,3 +307,29 @@ export const CELL_LIMIT = 50_000;
 export function isNearCellLimit(serialized: string): boolean {
   return serialized.length > CELL_LIMIT * 0.8;
 }
+
+/**
+ * ─── 진도율 / 마스터율 마일스톤 ───
+ * 10% 단위로 동기부여 팝업을 띄우기 위한 순수 판정 함수.
+ */
+export const MILESTONES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const;
+export type Milestone = (typeof MILESTONES)[number];
+
+/**
+ * done/total 이 prevDone → nextDone 으로 바뀌면서 새로 넘긴 가장 높은 마일스톤을 반환합니다.
+ * 문제 수가 적은 과목은 한 문제로 여러 구간을 한 번에 넘을 수 있는데, 그때마다 팝업을 여러 개
+ * 띄우면 스팸이 되므로 가장 높은 구간 하나만 알려 줍니다.
+ */
+export function crossedMilestone(
+  prevDone: number,
+  nextDone: number,
+  total: number,
+): Milestone | null {
+  if (total <= 0 || nextDone <= prevDone) return null;
+  let hit: Milestone | null = null;
+  for (const m of MILESTONES) {
+    const threshold = (m / 100) * total;
+    if (prevDone < threshold && nextDone >= threshold) hit = m;
+  }
+  return hit;
+}

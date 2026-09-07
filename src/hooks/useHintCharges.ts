@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /** 힌트 한 번이 다시 채워지기까지 */
-export const HINT_RECHARGE_MS = 3 * 60_000;
+export const HINT_RECHARGE_MS = 60_000;
 /** 안 쓰고 모아둘 수 있는 최대 개수 — 무한정 쌓이면 "아껴 쓰기"가 의미를 잃습니다 */
 export const MAX_HINT_CHARGES = 3;
 /** 처음 들어온 사람에게 주는 개수 — 한 번은 바로 볼 수 있게 1개로 시작합니다 */
@@ -69,7 +69,7 @@ function writeState(state: HintState) {
 
 /**
  * 힌트 충전 (기능 요구 2).
- * 3분에 하나씩 차오르고, 최대 MAX_HINT_CHARGES 개까지 모입니다.
+ * 1분에 하나씩 차오르고, 최대 MAX_HINT_CHARGES 개까지 모입니다.
  * 새로고침해도 충전 시각이 유지되도록 localStorage 에 남깁니다.
  */
 export function useHintCharges() {

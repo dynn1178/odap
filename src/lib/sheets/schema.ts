@@ -87,6 +87,9 @@ export const COMMENT_COLS = {
   subjectCode: "과목코드",
   name: "이름",
   body: "내용",
+  /** 진도율/마스터율 마일스톤 축하 팝업에서 남긴 경우에만 채워집니다 (선택 컬럼) */
+  progressPct: "진도율",
+  masteryPct: "마스터율",
 } as const;
 
 /** setup:sheets 스크립트가 만들어 주는 헤더 순서 (사람이 보기 좋은 기본 순서) */
@@ -131,6 +134,8 @@ export const DEFAULT_HEADERS: Record<string, string[]> = {
     COMMENT_COLS.subjectCode,
     COMMENT_COLS.name,
     COMMENT_COLS.body,
+    COMMENT_COLS.progressPct,
+    COMMENT_COLS.masteryPct,
   ],
 };
 

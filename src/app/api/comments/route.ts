@@ -5,6 +5,12 @@ import { findSubject } from "@/lib/repo/subjects";
 
 export const dynamic = "force-dynamic";
 
+function clampPct(v: unknown): number | undefined {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
 export async function GET(req: Request) {
   return handle(async () => {
     await requireSession();
@@ -28,7 +34,11 @@ export async function POST(req: Request) {
       return fail(`내용은 ${MAX_COMMENT_LEN}자까지 쓸 수 있어요.`);
     }
 
-    await addComment(session.userId, session.name, code, text);
+    // 마일스톤 축하 팝업에서 남긴 글에만 실려 오는 선택 값 — 숫자가 아니면 조용히 무시합니다.
+    const progressPct = clampPct(body.progressPct);
+    const masteryPct = clampPct(body.masteryPct);
+
+    await addComment(session.userId, session.name, code, text, { progressPct, masteryPct });
     return ok({ comments: await listComments(code) });
   });
 }

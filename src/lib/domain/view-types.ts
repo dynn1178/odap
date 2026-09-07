@@ -5,7 +5,14 @@
 
 import type { LevelCounts } from "./progress";
 
-export type Comment = { createdAt: string; name: string; body: string };
+export type Comment = {
+  createdAt: string;
+  name: string;
+  body: string;
+  /** 진도율/마스터율 마일스톤 축하 팝업에서 남긴 경우에만 있습니다 */
+  progressPct?: number;
+  masteryPct?: number;
+};
 
 export type Totals = {
   solved: number;

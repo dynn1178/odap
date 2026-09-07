@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { medal, rankedRows, RANKING_METRIC_TABS, rankingTab } from "@/lib/domain/ranking-metrics";
 import {
-  ACCURACY_MIN_SOLVED,
   type DashboardData,
   type InsightData,
   type FocusBucket,
@@ -370,42 +370,11 @@ function summarize(text: string): string {
   return flat.length > 34 ? `${flat.slice(0, 34)}…` : flat;
 }
 
-const METRIC_TABS: {
-  key: RankingMetric;
-  label: string;
-  format: (r: RankingRow) => string;
-  value: (r: RankingRow) => number;
-  note?: string;
-}[] = [
-  { key: "solved", label: "문제풀이", value: (r) => r.solved, format: (r) => `${r.solved.toLocaleString()}문제` },
-  { key: "seconds", label: "공부시간", value: (r) => r.seconds, format: (r) => formatDuration(r.seconds) },
-  {
-    key: "accuracy",
-    label: "정답률",
-    value: (r) => r.accuracy,
-    format: (r) => `${r.accuracy}%`,
-    note: `${ACCURACY_MIN_SOLVED}문제 이상 푼 사람만 집계합니다`,
-  },
-  { key: "mastered", label: "마스터", value: (r) => r.mastered, format: (r) => `${r.mastered}문제`, note: "score 0 까지 내려놓고 2번 이상 맞힌 문제 수" },
-  { key: "days", label: "출석일수", value: (r) => r.days, format: (r) => `${r.days}일` },
-  { key: "streak", label: "연속출석", value: (r) => r.streak, format: (r) => `${r.streak}일째`, note: "오늘 또는 어제까지 이어진 날 수" },
-  { key: "best", label: "하루 최다", value: (r) => r.best, format: (r) => `${r.best}문제`, note: "하루에 가장 많이 푼 기록" },
-];
-
 function Ranking({ rows }: { rows: RankingRow[] }) {
   const [metric, setMetric] = useState<RankingMetric>("solved");
-  const tab = METRIC_TABS.find((t) => t.key === metric)!;
+  const tab = rankingTab(metric);
 
-  // 지표별로 다시 줄 세웁니다. rows 는 서버에서 가입 순으로 와 있어서
-  // (JS sort 는 안정 정렬) 동점자는 먼저 가입한 사람이 앞섭니다.
-  const ranked = useMemo(() => {
-    const pool =
-      metric === "accuracy" ? rows.filter((r) => r.solved >= ACCURACY_MIN_SOLVED) : rows;
-    return [...pool]
-      .filter((r) => tab.value(r) > 0)
-      .sort((a, b) => tab.value(b) - tab.value(a))
-      .slice(0, 50);
-  }, [rows, metric, tab]);
+  const ranked = useMemo(() => rankedRows(rows, metric, 50), [rows, metric]);
 
   const myRank = ranked.findIndex((r) => r.isMe) + 1;
 
@@ -413,7 +382,7 @@ function Ranking({ rows }: { rows: RankingRow[] }) {
     <div className="space-y-3">
       <div className="scroll-x -mx-1 px-1">
         <div className="flex w-max gap-1.5">
-          {METRIC_TABS.map((t) => (
+          {RANKING_METRIC_TABS.map((t) => (
             <button
               key={t.key}
               type="button"
@@ -470,11 +439,6 @@ function Ranking({ rows }: { rows: RankingRow[] }) {
       )}
     </div>
   );
-}
-
-/** 1~3위만 표시를 달리해, 색이 아니라 기호로도 구분되게 합니다. */
-function medal(index: number): string | null {
-  return ["🥇", "🥈", "🥉"][index] ?? null;
 }
 
 function Comments({
@@ -540,6 +504,13 @@ function Comments({
                 </span>
               </div>
               <p className="mt-1 whitespace-pre-wrap break-words text-sm">{c.body}</p>
+              {(c.progressPct !== undefined || c.masteryPct !== undefined) && (
+                <p className="mt-1 text-[0.68rem] text-muted">
+                  {c.progressPct !== undefined && <>진도율 {c.progressPct}%</>}
+                  {c.progressPct !== undefined && c.masteryPct !== undefined && " · "}
+                  {c.masteryPct !== undefined && <>마스터율 {c.masteryPct}%</>} 시점
+                </p>
+              )}
             </li>
           ))}
         </ul>

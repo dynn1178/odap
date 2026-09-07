@@ -20,6 +20,7 @@ export function CelebrationModal({
   celebration,
   subjectCode,
   subjectName,
+  userName,
   progressPct,
   masteryPct,
   seen,
@@ -30,6 +31,7 @@ export function CelebrationModal({
   celebration: Celebration;
   subjectCode: string;
   subjectName: string;
+  userName: string;
   progressPct: number;
   masteryPct: number;
   seen: number;
@@ -134,7 +136,7 @@ export function CelebrationModal({
 
         <div className="mt-5 flex flex-col gap-2">
           <ShareStatsButton
-            stats={{ subjectName, progressPct, masteryPct, seen, total, mastered }}
+            stats={{ subjectName, userName, progressPct, masteryPct, seen, total, mastered }}
             variant="primary"
             fullWidth
           />

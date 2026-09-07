@@ -467,6 +467,7 @@ function StudyInner() {
               <ShareStatsButton
                 stats={{
                   subjectName: data.subject.name,
+                  userName: me.name,
                   progressPct: toPct(stats.seen, stats.total),
                   masteryPct: toPct(stats.mastered, stats.total),
                   seen: stats.seen,
@@ -643,6 +644,7 @@ function StudyInner() {
           celebration={celebrationQueue[0]}
           subjectCode={data.subject.code}
           subjectName={data.subject.name}
+          userName={me.name}
           progressPct={toPct(stats.seen, stats.total)}
           masteryPct={toPct(stats.mastered, stats.total)}
           seen={stats.seen}

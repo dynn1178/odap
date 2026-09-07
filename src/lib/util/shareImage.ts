@@ -19,6 +19,8 @@ const SIZE = 1080;
 
 export type StatsCardInput = {
   subjectName: string;
+  /** 카드 오른쪽 위에 배지로 넣을 이름 — 없으면 배지를 그리지 않습니다. */
+  userName?: string;
   progressPct: number;
   masteryPct: number;
   seen: number;
@@ -76,6 +78,34 @@ function drawBar(
   ctx.fillText(sub, x, y + h + 40);
 }
 
+/** 브랜드 라벨과 같은 줄, 카드 오른쪽 위에 이름을 알약(pill) 배지로 넣습니다. */
+function drawNameBadge(ctx: CanvasRenderingContext2D, userName: string) {
+  const label = `${userName}님`;
+  ctx.font = "700 30px 'Pretendard Variable', sans-serif";
+  const textWidth = ctx.measureText(label).width;
+
+  const padX = 26;
+  const h = 58;
+  const w = textWidth + padX * 2;
+  const x = SIZE - 120 - w;
+  const y = 190 - 32 - (h - 32) / 2;
+
+  ctx.fillStyle = "rgba(180, 83, 9, 0.12)";
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(180, 83, 9, 0.35)";
+  ctx.lineWidth = 2;
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.stroke();
+
+  ctx.fillStyle = COLOR.brand;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
 /** 진도율/마스터율 카드를 1080x1080 PNG Blob 으로 그립니다. */
 export async function drawStatsCard(input: StatsCardInput): Promise<Blob> {
   const canvas = document.createElement("canvas");
@@ -98,6 +128,8 @@ export async function drawStatsCard(input: StatsCardInput): Promise<Blob> {
   ctx.fillStyle = COLOR.brand;
   ctx.font = "700 32px 'Pretendard Variable', sans-serif";
   ctx.fillText("오답노크", 120, 190);
+
+  if (input.userName) drawNameBadge(ctx, input.userName);
 
   ctx.fillStyle = COLOR.text;
   ctx.font = "700 56px 'Pretendard Variable', sans-serif";

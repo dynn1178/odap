@@ -12,10 +12,13 @@ export function ShareStatsButton({
   stats,
   variant = "ghost",
   label = "공유하기",
+  fullWidth = false,
 }: {
   stats: StatsCardInput;
-  variant?: "ghost" | "subtle";
+  /** primary = 브랜드색으로 눈에 띄게 (축하 팝업 등 핵심 동작으로 둘 때) */
+  variant?: "primary" | "ghost" | "subtle";
   label?: string;
+  fullWidth?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -38,17 +41,43 @@ export function ShareStatsButton({
     }
   };
 
+  const variantClass = variant === "primary" ? btn.primary : variant === "ghost" ? btn.ghost : btn.subtle;
+
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className={cx("inline-flex items-center gap-2", fullWidth && "flex w-full flex-col items-stretch")}>
       <button
         type="button"
         onClick={onClick}
         disabled={busy}
-        className={cx(variant === "ghost" ? btn.ghost : btn.subtle, "!min-h-[38px] !px-3 text-xs")}
+        className={cx(variantClass, !fullWidth && "!min-h-[38px] !px-3 text-xs", fullWidth && "w-full")}
       >
+        <ShareIcon />
         {busy ? "만드는 중…" : label}
       </button>
       {notice && <span className="text-[0.7rem] text-muted">{notice}</span>}
     </span>
+  );
+}
+
+/** feather "share-2" 아이콘 — 공유 버튼이 다른 버튼들 사이에서 한눈에 띄도록 */
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
   );
 }

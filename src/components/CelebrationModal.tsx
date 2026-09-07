@@ -132,12 +132,14 @@ export function CelebrationModal({
           )}
         </form>
 
-        <div className="mt-5 flex items-center justify-between gap-2">
+        <div className="mt-5 flex flex-col gap-2">
           <ShareStatsButton
             stats={{ subjectName, progressPct, masteryPct, seen, total, mastered }}
-            variant="subtle"
+            variant="primary"
+            label="이 순간 공유하기"
+            fullWidth
           />
-          <button type="button" className={cx(btn.ghost)} onClick={onClose}>
+          <button type="button" className={cx(btn.ghost, "w-full")} onClick={onClose}>
             닫기
           </button>
         </div>

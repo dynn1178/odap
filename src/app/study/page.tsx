@@ -88,7 +88,12 @@ const DIRECTION_KEY = (code: string) => `odap.direction.${code}`;
 /** 진도율/마스터율 마일스톤 축하는 과목당·사람당 한 번만 — 영구 저장(localStorage). */
 const CELEBRATED_KEY = (code: string, type: Celebration["type"], milestone: number) =>
   `odap.celebrated.${code}.${type}.${milestone}`;
-/** 과목 진입 인트로(랭킹·한줄남기기)는 세션당 한 번만 — 새 탭/새로고침이면 다시 보입니다. */
+/**
+ * 과목 진입 인트로(랭킹·한줄남기기) 재노출 주기.
+ * 새 탭/새로고침이면 항상 다시 보이고, 같은 탭을 계속 켜 둬도(세션이 무기한 이어져도)
+ * 이 시간이 지나면 다시 보이도록 "마지막으로 보여준 시각"을 저장해 둡니다.
+ */
+const INTRO_REPEAT_MS = 3 * 60 * 60 * 1000;
 const INTRO_KEY = (code: string) => `odap.introShown.${code}`;
 
 function toPct(done: number, total: number): number {
@@ -181,10 +186,11 @@ function StudyInner() {
       })
       .catch((e: Error) => setError(e.message));
 
-    // 과목 진입 인트로 — 세션당 한 번만 띄웁니다. 실패해도 문제풀이 자체는 그대로 진행됩니다.
+    // 과목 진입 인트로 — 3시간에 한 번만 띄웁니다. 실패해도 문제풀이 자체는 그대로 진행됩니다.
     try {
-      if (!sessionStorage.getItem(INTRO_KEY(subjectCode))) {
-        sessionStorage.setItem(INTRO_KEY(subjectCode), "1");
+      const last = Number(sessionStorage.getItem(INTRO_KEY(subjectCode))) || 0;
+      if (Date.now() - last > INTRO_REPEAT_MS) {
+        sessionStorage.setItem(INTRO_KEY(subjectCode), String(Date.now()));
         fetch(`/api/dashboard?subject=${encodeURIComponent(subjectCode)}`, { cache: "no-store" })
           .then(async (res) => {
             if (!res.ok) return;

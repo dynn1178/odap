@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { KnockLogo } from "@/components/KnockLogo";
-import { btn, Empty, ErrorBox, Spinner } from "@/components/ui";
+import { btn, Empty, ErrorBox, RefreshIcon, Spinner } from "@/components/ui";
 import { clearMeCache, useAuth } from "@/hooks/useAuth";
 import { pickHomeMessage } from "@/lib/domain/phrases";
 import { flushBeforeLogout } from "@/hooks/useSyncQueue";
@@ -28,6 +28,8 @@ export default function HomePage() {
   // 방문할 때마다 다른 문구. 화면이 다시 그려질 때 문구가 바뀌지 않도록 최초 1회만 뽑습니다.
   const [homeMessage] = useState(pickHomeMessage);
   const [error, setError] = useState<string | null>(null);
+  /** [과목 새로고침] 을 누른 뒤 캐시가 비워질 때까지 — 아이콘을 돌리고 두 번 눌리지 않게 막습니다. */
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !me) router.replace("/login");
@@ -50,6 +52,20 @@ export default function HomePage() {
     if (me) load();
   }, [me]);
 
+  /**
+   * 과목목록·문제은행은 서버에서 15분 캐시라, 시트에 과목이나 문제를 추가해도
+   * 새로고침만으로는 바로 안 보일 수 있습니다. 이 버튼은 전체 캐시를 비우고 다시 불러옵니다 —
+   * 문제풀이 화면의 [시트 다시 읽기] 가 그 과목 하나만 지우는 것과 달리, 이 화면은 과목 자체가
+   * 늘거나 줄 수 있어 과목목록·문제은행을 통째로 새로 읽어야 하기 때문입니다.
+   */
+  const reloadSubjects = async () => {
+    if (reloading) return;
+    setReloading(true);
+    await fetch("/api/cache/purge", { cache: "no-store" }).catch(() => null);
+    setReloading(false);
+    load();
+  };
+
   if (authLoading || !me) return null;
 
   // 상위그룹으로 묶어서 보여줍니다 (기획안 3-4 ⑤)
@@ -62,16 +78,28 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex items-start gap-3">
-        <span className="mt-0.5 text-brand">
-          <KnockLogo size={34} />
-        </span>
-        <div>
-          <h1 className="text-lg font-bold">
-            {me.name}님, 오늘도 <span className="text-brand">똑똑</span>
-          </h1>
-          <p className="mt-1 text-sm text-muted">{homeMessage}</p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 text-brand">
+            <KnockLogo size={34} />
+          </span>
+          <div>
+            <h1 className="text-lg font-bold">
+              {me.name}님, 오늘도 <span className="text-brand">똑똑</span>
+            </h1>
+            <p className="mt-1 text-sm text-muted">{homeMessage}</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={reloadSubjects}
+          disabled={reloading}
+          aria-label="과목 새로고침"
+          title="과목 새로고침"
+          className="-m-1 mt-1.5 shrink-0 rounded-md p-1.5 text-muted transition hover:bg-surface2 hover:text-ink disabled:opacity-50"
+        >
+          <RefreshIcon spinning={reloading} />
+        </button>
       </div>
 
       {error && <ErrorBox message={error} onRetry={load} />}

@@ -9,7 +9,7 @@ import { KnockingDoor } from "@/components/KnockLogo";
 import { PortalSearch } from "@/components/PortalSearch";
 import { ShareStatsButton } from "@/components/ShareStatsButton";
 import { StudyIntroModal } from "@/components/StudyIntroModal";
-import { btn, cx, Empty, ErrorBox, Spinner } from "@/components/ui";
+import { btn, cx, Empty, ErrorBox, RefreshIcon, Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import {
   formatCountdown,
@@ -646,32 +646,6 @@ function StudyInner() {
         />
       )}
     </AppShell>
-  );
-}
-
-/**
- * 지문은 헤더 바로 아래에 붙여 두고, 보기부터는 페이지와 함께 흐릅니다.
- * 스크롤 영역을 여러 개 두면 어느 걸 굴리는지 헷갈려서, 페이지 스크롤 하나만 씁니다.
- * (지문이 아주 길 때만 지문 안쪽이 스크롤됩니다.)
- */
-/** 시트를 다시 읽는 동안 도는 작은 새로고침 아이콘 (feather rotate-cw) */
-function RefreshIcon({ spinning }: { spinning: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="13"
-      height="13"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={spinning ? "animate-spin" : undefined}
-    >
-      <polyline points="23 4 23 10 17 10" />
-      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-    </svg>
   );
 }
 

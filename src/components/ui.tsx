@@ -115,3 +115,24 @@ export function Empty({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/** 캐시를 지우고 다시 불러오는 동안 도는 작은 새로고침 아이콘 (feather rotate-cw). 과목 목록·문제풀이 새로고침 버튼이 함께 씁니다. */
+export function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={spinning ? "animate-spin" : undefined}
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
